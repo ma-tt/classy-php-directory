@@ -17,7 +17,7 @@ return array(
         'resources/*',
         'analytics.inc',
         'header.php',
-        'footer.php'
+        'footer.php',
         'error_log'
     ),
 
