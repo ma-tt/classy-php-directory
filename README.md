@@ -18,13 +18,17 @@ Classy PHP Directory requires PHP 5.3+ to work properly.
 
 ## Installation
 
-1. Copy the `resources' folder and `index.php` into your web directory.
-2. Upload additional files/folders to the same directory as index.php
-3. Be a classy gentleman and enjoy your new Classy PHP Directory.
+1. Copy the 'resources' folder and the 'index.php' file into the root directory you want to work with.
+2. Upload additional files or folders to the same directory as your index.php file.
+3. Sit back, relax, and be a classy gentleman with your new Classy PHP Directory.
 
 ## Troubleshooting
 
 Verify that you have PHP 5.3 or later installed and running.
+
+## Thanks
+
+[Chris Kankiewicz](http://www.chriskankiewicz.com)
 
 ## License
 
