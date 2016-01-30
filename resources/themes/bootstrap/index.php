@@ -138,6 +138,16 @@
                 <?php endforeach; ?>
 
             </ul>
+<<<<<<< HEAD
+=======
+
+            <hr>
+
+            <div class="footer">
+                Powered by <a href="https://github.com/ma-tt/ClassyPHPdirectory/">Classy PHP Directory</a>
+            </div>
+
+>>>>>>> origin/master
         </div>
 
         <?php file_exists('footer.php') ? include('footer.php') : include($lister->getThemePath(true) . "/default_footer.php"); ?>
