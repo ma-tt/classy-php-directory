@@ -14,6 +14,7 @@ return array(
         'resources',
         'resources/*',
         'analytics.inc'
+        'error_log'
     ),
 
     // File hashing threshold
