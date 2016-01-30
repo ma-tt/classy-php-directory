@@ -8,13 +8,13 @@
         <link rel="shortcut icon" href="<?php echo THEMEPATH; ?>/img/folder.png">
 
         <!-- STYLES -->
-        <link rel="stylesheet" type="text/css" href="<?php echo THEMEPATH; ?>/css/bootstrap.min.css">
-        <link rel="stylesheet" type="text/css" href="<?php echo THEMEPATH; ?>/css/font-awesome.min.css">
+        <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+        <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
         <link rel="stylesheet" type="text/css" href="<?php echo THEMEPATH; ?>/css/style.css">
 
         <!-- SCRIPTS -->
-        <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
-        <script type="text/javascript" src="<?php echo THEMEPATH; ?>/js/bootstrap.min.js"></script>
+        <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+        <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
         <script type="text/javascript" src="<?php echo THEMEPATH; ?>/js/directorylister.js"></script>
 
         <!-- FONTS -->
@@ -46,14 +46,34 @@
                     <?php endforeach; ?>
                 </p>
 
-                <ul id="page-top-nav" class="nav navbar-nav navbar-right">
-                    <li><a href="javascript:void(0)" id="page-top-link"><i class="fa fa-arrow-circle-up fa-lg"></i></a></li>
-                </ul>
+                <div class="navbar-right">
+
+                    <ul id="page-top-nav" class="nav navbar-nav">
+                        <li>
+                            <a href="javascript:void(0)" id="page-top-link">
+                                <i class="fa fa-arrow-circle-up fa-lg"></i>
+                            </a>
+                        </li>
+                    </ul>
+
+                    <?php  if ($lister->isZipEnabled()): ?>
+                        <ul id="page-top-download-all" class="nav navbar-nav">
+                            <li>
+                                <a href="?zip=<?php echo $lister->getDirectoryPath(); ?>" id="download-all-link">
+                                    <i class="fa fa-download fa-lg"></i>
+                                </a>
+                            </li>
+                        </ul>
+                    <?php endif; ?>
+
+                </div>
 
             </div>
         </div>
 
         <div id="page-content" class="container">
+
+            <?php file_exists('header.php') ? include('header.php') : include($lister->getThemePath(true) . "/default_header.php"); ?>
 
             <?php if($lister->getSystemMessages()): ?>
                 <?php foreach ($lister->getSystemMessages() as $message): ?>
@@ -75,8 +95,8 @@
             <ul id="directory-listing" class="nav nav-pills nav-stacked">
 
                 <?php foreach($dirArray as $name => $fileInfo): ?>
-                    <li data-name="<?php echo $name; ?>" data-href="<?php echo $fileInfo['file_path']; ?>">
-                        <a href="<?php echo $fileInfo['file_path']; ?>" class="clearfix" data-name="<?php echo $name; ?>">
+                    <li data-name="<?php echo $name; ?>" data-href="<?php echo $fileInfo['url_path']; ?>">
+                        <a href="<?php echo $fileInfo['url_path']; ?>" class="clearfix" data-name="<?php echo $name; ?>">
 
 
                             <div class="row">
@@ -97,22 +117,30 @@
                         </a>
 
                         <?php if (is_file($fileInfo['file_path'])): ?>
+
                             <a href="javascript:void(0)" class="file-info-button">
                                 <i class="fa fa-info-circle"></i>
                             </a>
+
+                        <?php else: ?>
+
+                            <?php if ($lister->containsIndex($fileInfo['file_path'])): ?>
+
+                                <a href="<?php echo $fileInfo['file_path']; ?>" class="web-link-button" <?php if($lister->externalLinksNewWindow()): ?>target="_blank"<?php endif; ?>>
+                                    <i class="fa fa-external-link"></i>
+                                </a>
+
+                            <?php endif; ?>
+
                         <?php endif; ?>
+
                     </li>
                 <?php endforeach; ?>
 
             </ul>
-
-            <hr>
-
-            <div class="footer">
-                Powered by, <a href="http://www.directorylister.com">Directory Lister</a>
-            </div>
-
         </div>
+
+        <?php file_exists('footer.php') ? include('footer.php') : include($lister->getThemePath(true) . "/default_footer.php"); ?>
 
         <div id="file-info-modal" class="modal fade">
             <div class="modal-dialog">
