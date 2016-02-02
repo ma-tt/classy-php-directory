@@ -2,6 +2,8 @@
 
 A simple and classy PHP directory lister.
 
+![alt tag](http://i.imgur.com/hJSOrSG.png)
+
 ## Introduction
 
 Classy PHP Directory is a simple and classy PHP script that allows you to create a directory of any web-accessable folder and easily navigate within that directory and all sub directories.
