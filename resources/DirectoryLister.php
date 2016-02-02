@@ -1,18 +1,5 @@
 <?php
 
-/**
- * A simple PHP based directory lister that lists the contents
- * of a directory and all it's sub-directories and allows easy
- * navigation of the files within.
- *
- * This software distributed under the MIT License
- * http://www.opensource.org/licenses/mit-license.php
- *
- * More info available at http://www.directorylister.com
- *
- * @author Chris Kankiewicz (http://www.chriskankiewicz.com)
- * @copyright 2015 Chris Kankiewicz
- */
 class DirectoryLister {
 
     // Define application version
