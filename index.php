@@ -1,7 +1,7 @@
 <?php
 
     // Include the DirectoryLister class
-    require_once('_resources/DirectoryLister.php');
+    require_once('resources/DirectoryLister.php');
 
     // Initialize the DirectoryLister object
     $lister = new DirectoryLister();
