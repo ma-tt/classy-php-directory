@@ -15,6 +15,8 @@ return array(
         '*/.ht*',
         'resources',
         'resources/*',
+        '_resources',
+        '_resources/*',
         'analytics.inc',
         'header.php',
         'footer.php',
