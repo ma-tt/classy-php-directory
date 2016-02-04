@@ -18,6 +18,8 @@ return array(
         '_resources',
         '_resources/*',
         'analytics.inc',
+        'LICENSE',
+        'README.md',
         'header.php',
         'footer.php',
         'error_log'
