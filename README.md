@@ -1,4 +1,4 @@
-# ClassyPHPdirectory
+# Classy PHP Directory
 
 A simple and classy PHP directory lister.
 
