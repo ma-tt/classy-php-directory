@@ -13,6 +13,7 @@ return array(
     'hidden_files' => array(
         '.ht*',
         '*/.ht*',
+        'robots.txt',
         'resources',
         'resources/*',
         '_resources',
