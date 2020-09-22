@@ -14,8 +14,6 @@ return array(
         '.ht*',
         '*/.ht*',
         'robots.txt',
-        'resources',
-        'resources/*',
         '_resources',
         '_resources/*',
         'analytics.inc',
