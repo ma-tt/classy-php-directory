@@ -32,17 +32,21 @@ $(document).ready(function() {
         $('#file-info .filesize').text('Loading...');
 
         $.ajax({
-            url:     '?hash=' + path,
-            type:    'get',
-            success: function(data) {
-
-                // Parse the JSON data
-                var obj = jQuery.parseJSON(data);
+            url:      '?hash=' + encodeURIComponent(path),
+            type:     'get',
+            dataType: 'json',
+            success:  function(obj) {
 
                 // Set modal pop-up hash values
-                $('#file-info .md5-hash').text(obj.md5);
-                $('#file-info .sha1-hash').text(obj.sha1);
-                $('#file-info .filesize').text(obj.size);
+                if (obj && typeof obj === 'object') {
+                    $('#file-info .md5-hash').text(obj.md5 || 'N/A');
+                    $('#file-info .sha1-hash').text(obj.sha1 || 'N/A');
+                    $('#file-info .filesize').text(obj.size !== null ? obj.size : 'N/A');
+                } else {
+                    $('#file-info .md5-hash').text('N/A');
+                    $('#file-info .sha1-hash').text('N/A');
+                    $('#file-info .filesize').text('N/A');
+                }
 
             }
         });

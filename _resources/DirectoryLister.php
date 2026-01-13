@@ -13,6 +13,7 @@ class DirectoryLister {
     protected $_config        = null;
     protected $_fileTypes     = null;
     protected $_systemMessage = null;
+    protected $_hiddenFilesMerged = false;
 
 
     /**
@@ -46,6 +47,15 @@ class DirectoryLister {
 
         // Set the theme name
         $this->_themeName = $this->_config['theme_name'];
+
+        // Merge dotfile hidden patterns once if enabled
+        if (!empty($this->_config['hide_dot_files']) && !$this->_hiddenFilesMerged) {
+            $this->_config['hidden_files'] = array_merge(
+                $this->_config['hidden_files'],
+                array('.*', '*/.*')
+            );
+            $this->_hiddenFilesMerged = true;
+        }
 
     }
 
@@ -89,7 +99,7 @@ class DirectoryLister {
             }
 
             // We deliver a zip file
-            header('Content-Type: archive/zip');
+            header('Content-Type: application/zip');
 
             // Filename for the browser to save the zip file
             header("Content-Disposition: attachment; filename=\"$filename_no_ext.zip\"");
@@ -99,12 +109,16 @@ class DirectoryLister {
 
             // TODO: Probably we have to parse exclude list more carefully
             $exclude_list = implode(' ', array_merge($this->_config['hidden_files'], array('index.php')));
-            $exclude_list = str_replace("*", "\*", $exclude_list);
+            $exclude_list = str_replace("*", "\\*", $exclude_list);
+            $exclude_patterns = array_map('trim', explode(' ', $exclude_list));
+            $escaped_excludes = array_map('escapeshellarg', $exclude_patterns);
+            $exclude_arg = implode(' ', $escaped_excludes);
 
             if ($this->_config['zip_stream']) {
 
                 // zip the stuff (dir and all in there) into the streamed zip file
-                $stream = popen('/usr/bin/zip -' . $this->_config['zip_compression_level'] . ' -r -q - * -x ' . $exclude_list, 'r');
+                $cmd = '/usr/bin/zip -' . (int)$this->_config['zip_compression_level'] . ' -r -q - * -x ' . $exclude_arg;
+                $stream = popen($cmd, 'r');
 
                 if ($stream) {
                    fpassthru($stream);
@@ -117,7 +131,8 @@ class DirectoryLister {
                 $tmp_zip = tempnam('tmp', 'tempzip') . '.zip';
 
                 // zip the stuff (dir and all in there) into the tmp_zip file
-                exec('zip -' . $this->_config['zip_compression_level'] . ' -r ' . $tmp_zip . ' * -x ' . $exclude_list);
+                $cmd = 'zip -' . (int)$this->_config['zip_compression_level'] . ' -r ' . escapeshellarg($tmp_zip) . ' * -x ' . $exclude_arg;
+                exec($cmd);
 
                 // calc the length of the zip. it is needed for the progress bar of the browser
                 $filesize = filesize($tmp_zip);
@@ -359,41 +374,44 @@ class DirectoryLister {
      */
     public function getFileHash($filePath) {
 
-        // Placeholder array
-        $hashArray = array();
+        $hashArray = array(
+            'md5' => null,
+            'sha1' => null,
+            'size' => null
+        );
 
-        // Verify file path exists and is a directory
-        if (!file_exists($filePath)) {
-            return json_encode($hashArray);
+        // Resolve real path
+        $real = realpath($filePath);
+
+        if ($real === false || !is_file($real)) {
+            return $hashArray;
         }
 
         // Prevent access to hidden files
         if ($this->_isHidden($filePath)) {
-            return json_encode($hashArray);
+            return $hashArray;
         }
 
-        // Prevent access to parent folders
-        if (strpos($filePath, '<') !== false || strpos($filePath, '>') !== false
-        || strpos($filePath, '..') !== false || strpos($filePath, '/') === 0) {
-            return json_encode($hashArray);
+        // Ensure resolved path is inside the current working directory
+        $cwd = getcwd();
+        if (strpos($real, $cwd) !== 0) {
+            return $hashArray;
         }
+
+        $size = filesize($real);
+        $hashArray['size'] = $size === false ? null : $size;
 
         // Prevent hashing if file is too big
-        if (filesize($filePath) > $this->_config['hash_size_limit']) {
-
-            // Notify user that file is too large
+        if ($size !== false && $size > $this->_config['hash_size_limit']) {
             $hashArray['md5']  = '[ File size exceeds threshold ]';
             $hashArray['sha1'] = '[ File size exceeds threshold ]';
-
-        } else {
-
-            // Generate file hashes
-            $hashArray['md5']  = hash_file('md5', $filePath);
-            $hashArray['sha1'] = hash_file('sha1', $filePath);
-
+            return $hashArray;
         }
 
-        // Return the data
+        // Generate file hashes
+        $hashArray['md5']  = hash_file('md5', $real);
+        $hashArray['sha1'] = hash_file('sha1', $real);
+
         return $hashArray;
 
     }
@@ -743,25 +761,11 @@ class DirectoryLister {
      */
     protected function _isHidden($filePath) {
 
-        // Add dot files to hidden files array
-        if ($this->_config['hide_dot_files']) {
-
-            $this->_config['hidden_files'] = array_merge(
-                $this->_config['hidden_files'],
-                array('.*', '*/.*')
-            );
-
-        }
-
         // Compare path array to all hidden file paths
         foreach ($this->_config['hidden_files'] as $hiddenPath) {
-
             if (fnmatch($hiddenPath, $filePath)) {
-
                 return true;
-
             }
-
         }
 
         return false;

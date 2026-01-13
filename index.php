@@ -12,12 +12,11 @@
     // Return file hash
     if (isset($_GET['hash'])) {
 
-        // Get file hash array and JSON encode it
+        // Return JSON-encoded file hash information
+        header('Content-Type: application/json; charset=utf-8');
         $hashes = $lister->getFileHash($_GET['hash']);
-        $data   = json_encode($hashes);
-
-        // Return the data
-        die($data);
+        echo json_encode($hashes);
+        exit;
 
     }
 
