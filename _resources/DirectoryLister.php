@@ -82,70 +82,137 @@ class DirectoryLister {
      * @access public
      */
     public function zipDirectory($directory) {
+        if (!$this->_config['zip_dirs']) {
+            return;
+        }
 
-        if ($this->_config['zip_dirs']) {
+        // Cleanup directory path
+        $directory = $this->setDirectoryPath($directory);
 
-            // Cleanup directory path
-            $directory = $this->setDirectoryPath($directory);
+        if ($directory != '.' && $this->_isHidden($directory)) {
+            echo "Access denied.";
+            return;
+        }
 
-            if ($directory != '.' && $this->_isHidden($directory)) {
-                echo "Access denied.";
+        $filename_no_ext = basename($directory);
+
+        if ($directory == '.') {
+            $filename_no_ext = 'Home';
+        }
+
+        // Temporary zip file
+        $tmp_zip = tempnam(sys_get_temp_dir(), 'classyzip') . '.zip';
+
+        $zipCreated = false;
+        if (class_exists('ZipArchive')) {
+            $zip = new ZipArchive();
+            if ($zip->open($tmp_zip, ZipArchive::CREATE) === true) {
+                $zipCreated = true;
             }
+        }
 
-            $filename_no_ext = basename($directory);
-
-            if ($directory == '.') {
-                $filename_no_ext = 'Home';
-            }
-
-            // We deliver a zip file
-            header('Content-Type: application/zip');
-
-            // Filename for the browser to save the zip file
-            header("Content-Disposition: attachment; filename=\"$filename_no_ext.zip\"");
-
-            //change directory so the zip file doesnt have a tree structure in it.
-            chdir($directory);
-
-            // TODO: Probably we have to parse exclude list more carefully
-            $exclude_list = implode(' ', array_merge($this->_config['hidden_files'], array('index.php')));
-            $exclude_list = str_replace("*", "\\*", $exclude_list);
-            $exclude_patterns = array_map('trim', explode(' ', $exclude_list));
-            $escaped_excludes = array_map('escapeshellarg', $exclude_patterns);
-            $exclude_arg = implode(' ', $escaped_excludes);
-
-            if ($this->_config['zip_stream']) {
-
-                // zip the stuff (dir and all in there) into the streamed zip file
-                $cmd = '/usr/bin/zip -' . (int)$this->_config['zip_compression_level'] . ' -r -q - * -x ' . $exclude_arg;
-                $stream = popen($cmd, 'r');
-
-                if ($stream) {
-                   fpassthru($stream);
-                   fclose($stream);
-                }
-
+        // If ZipArchive is not available/fails, we'll try a safe shell fallback if possible
+        $useShellFallback = false;
+        if (!$zipCreated) {
+            // Check for zip binary and that exec/popen exist
+            if ((is_executable('/usr/bin/zip') || is_executable('/bin/zip')) && (function_exists('exec') || function_exists('popen'))) {
+                $useShellFallback = true;
             } else {
-
-                // get a tmp name for the .zip
-                $tmp_zip = tempnam('tmp', 'tempzip') . '.zip';
-
-                // zip the stuff (dir and all in there) into the tmp_zip file
-                $cmd = 'zip -' . (int)$this->_config['zip_compression_level'] . ' -r ' . escapeshellarg($tmp_zip) . ' * -x ' . $exclude_arg;
-                exec($cmd);
-
-                // calc the length of the zip. it is needed for the progress bar of the browser
-                $filesize = filesize($tmp_zip);
-                header("Content-Length: $filesize");
-
-                // deliver the zip file
-                $fp = fopen($tmp_zip, 'r');
-                echo fpassthru($fp);
-
-                // clean up the tmp zip file
-                unlink($tmp_zip);
-
+                $this->setSystemMessage('danger', '<b>ERROR:</b> Zip archive is not available on this system');
+                return;
             }
+        }
+
+        // Build exclude patterns (from config hidden files + index.php)
+        $exclude_patterns = array_merge($this->_config['hidden_files'], array('index.php'));
+
+        // Normalize exclude patterns
+        $exclude_patterns = array_map('trim', $exclude_patterns);
+
+        // Recursively add files
+        $baseDir = $directory;
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($baseDir, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::LEAVES_ONLY
+        );
+
+        foreach ($files as $file) {
+            $filePath = $file->getPathname();
+            // Build relative path
+            $relativePath = ltrim(str_replace($baseDir, '', $filePath), DIRECTORY_SEPARATOR);
+            // Normalize to forward slashes for matching
+            $relativeForMatch = str_replace(DIRECTORY_SEPARATOR, '/', $relativePath);
+
+            // Skip excluded patterns
+            $skip = false;
+            foreach ($exclude_patterns as $pattern) {
+                if ($pattern === '') continue;
+                if (fnmatch($pattern, $relativeForMatch) || fnmatch($pattern, $file->getFilename())) {
+                    $skip = true;
+                    break;
+                }
+            }
+            if ($skip) continue;
+
+            // Add file to zip under its relative path
+            if ($zipCreated) {
+                $zip->addFile($filePath, $relativePath);
+            } else {
+                // Collect files for shell fallback
+                $shellFiles[] = array('full' => $filePath, 'rel' => $relativePath);
+            }
+        }
+
+        if ($zipCreated) {
+            $zip->close();
+
+            // Deliver the zip file
+            header('Content-Type: application/zip');
+            header('Content-Disposition: attachment; filename="' . basename($filename_no_ext) . '.zip"');
+            header('Content-Length: ' . filesize($tmp_zip));
+
+            readfile($tmp_zip);
+            unlink($tmp_zip);
+            return;
+        }
+
+        // Shell fallback: create a temporary directory structure and call zip binary safely
+        if ($useShellFallback) {
+            // Build include list and run zip with -j to store relative paths
+            $cwd = getcwd();
+            // We'll run zip from the baseDir, pass relative paths
+            $escapedTmp = escapeshellarg($tmp_zip);
+            $zipBin = is_executable('/usr/bin/zip') ? '/usr/bin/zip' : '/bin/zip';
+
+            // Build file list argument safely
+            $relList = array();
+            foreach ($shellFiles as $f) {
+                $relList[] = escapeshellarg($f['rel']);
+            }
+
+            // Change to base dir and run zip with safe args
+            $cmd = 'cd ' . escapeshellarg($baseDir) . ' && ' . escapeshellarg($zipBin) . ' -' . (int)$this->_config['zip_compression_level'] . ' -r ' . $escapedTmp . ' --quiet ' . implode(' ', $relList);
+
+            if (function_exists('exec')) {
+                exec($cmd, $out, $ret);
+            } else {
+                $proc = popen($cmd, 'r');
+                if ($proc) {
+                    pclose($proc);
+                }
+            }
+
+            if (!file_exists($tmp_zip)) {
+                $this->setSystemMessage('danger', '<b>ERROR:</b> Failed to create zip archive');
+                return;
+            }
+
+            header('Content-Type: application/zip');
+            header('Content-Disposition: attachment; filename="' . basename($filename_no_ext) . '.zip"');
+            header('Content-Length: ' . filesize($tmp_zip));
+            readfile($tmp_zip);
+            unlink($tmp_zip);
+            return;
         }
 
     }
@@ -761,10 +828,31 @@ class DirectoryLister {
      */
     protected function _isHidden($filePath) {
 
-        // Compare path array to all hidden file paths
+        // Normalize variants to test against patterns: original, without leading ./ or /, basename, and realpath
+        $variants = array();
+        $variants[] = $filePath;
+        $variants[] = ltrim($filePath, './');
+        $variants[] = ltrim($filePath, '/');
+        $variants[] = basename($filePath);
+
+        $real = realpath($filePath);
+        if ($real !== false) {
+            $variants[] = $real;
+            // also relative to cwd
+            $cwd = getcwd();
+            if (strpos($real, $cwd) === 0) {
+                $variants[] = ltrim(substr($real, strlen($cwd)), DIRECTORY_SEPARATOR);
+            }
+        }
+
+        // Compare path variants to all hidden file paths
         foreach ($this->_config['hidden_files'] as $hiddenPath) {
-            if (fnmatch($hiddenPath, $filePath)) {
-                return true;
+            if ($hiddenPath === '') continue;
+            foreach ($variants as $v) {
+                if ($v === '') continue;
+                if (fnmatch($hiddenPath, $v)) {
+                    return true;
+                }
             }
         }
 
