@@ -1,38 +1,39 @@
 # Classy PHP Directory
 
-A simple and classy PHP directory lister.
+Simple PHP directory listing you can drop into any folder to browse files and subfolders via a tidy UI.
 
-![screenshot](/_resources/screenshot.png)
+## Overview
 
-## Introduction
+`Classy PHP Directory` serves a browsable index of the directory where you place `index.php`.
 
-Classy PHP Directory is a simple and classy PHP script that allows you to create a directory of any web-accessable folder and easily navigate within that directory and all sub directories.
+## Quick Start
 
-## Features
-- Extremely simple installation
-- Creates on-the-fly listing of any web-accessable directory
-- Custimizable sort order of files/folders
-- Easily define hidden files to be excluded from the listing
+1. Copy `index.php` and the `_resources/` folder into the directory you want to serve.
+2. Add files or folders to that directory.
+3. Open the folder in your browser (e.g. `http://localhost/your-folder/`).
+
+No build steps required.
 
 ## Requirements
 
-Classy PHP Directory requires PHP 5.3+ to work properly.
+- Required: PHP (any supported version on your host).
 
-## Installation
+## How to use
 
-1. Copy the '_resources' folder and the 'index.php' file into the root directory you want to work with.
-2. Upload additional files or folders to the same directory as your index.php file.
-3. Sit back, relax, and be a classy gentleman with your new Classy PHP Directory.
+- Click files to download, folders to navigate.
+- Click the info (i) icon to request checksums (MD5/SHA1).
 
-## Troubleshooting
+## Configuration
 
-Verify that you have PHP 5.3 or later installed and running.
+Edit `_resources/config.php`:
+- `hidden_files` — glob patterns or filenames to hide (example: `_resources`, `.env`).
+- `index_files` — files that make a folder a direct link (e.g. `index.php`).
+- `hash_size_limit` — max bytes allowed for checksum generation.
 
 ## Thanks
 
-[Chris Kankiewicz](http://www.chriskankiewicz.com)
+Thanks to [Chris Kankiewicz](http://www.chriskankiewicz.com/).
 
 ## License
 
-Classy PHP Directory is distributed under the terms of the
-[MIT License](http://www.opensource.org/licenses/mit-license.php).
+This project is licensed under the [MIT License](http://www.opensource.org/licenses/mit-license.php).
