@@ -21,6 +21,7 @@ return array(
         'README.md',
         'header.php',
         'footer.php',
+        'favicon.*',
         'error_log'
     ),
 
