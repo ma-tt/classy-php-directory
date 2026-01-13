@@ -4,7 +4,7 @@
 
     <head>
 
-        <title>Directory listing of <?php echo $lister->getListedPath(); ?></title>
+        <title>Directory listing of <?php echo htmlspecialchars($lister->getListedPath(), ENT_QUOTES, 'UTF-8'); ?></title>
         <link rel="shortcut icon" href="<?php echo THEMEPATH; ?>/img/folder.png">
 
         <!-- STYLES -->
@@ -39,10 +39,10 @@
                 <p class="navbar-text">
                     <?php foreach($breadcrumbs as $breadcrumb): ?>
                         <?php if ($breadcrumb != end($breadcrumbs)): ?>
-                                <a href="<?php echo $breadcrumb['link']; ?>"><?php echo $breadcrumb['text']; ?></a>
+                                <a href="<?php echo htmlspecialchars($breadcrumb['link'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($breadcrumb['text'], ENT_QUOTES, 'UTF-8'); ?></a>
                                 <span class="divider">/</span>
                         <?php else: ?>
-                            <?php echo $breadcrumb['text']; ?>
+                            <?php echo htmlspecialchars($breadcrumb['text'], ENT_QUOTES, 'UTF-8'); ?>
                         <?php endif; ?>
                     <?php endforeach; ?>
                 </p>
@@ -96,22 +96,22 @@
             <ul id="directory-listing" class="nav nav-pills nav-stacked">
 
                 <?php foreach($dirArray as $name => $fileInfo): ?>
-                    <li data-name="<?php echo $name; ?>" data-href="<?php echo $fileInfo['url_path']; ?>">
-                        <a href="<?php echo $fileInfo['url_path']; ?>" class="clearfix" data-name="<?php echo $name; ?>">
+                    <li data-name="<?php echo htmlspecialchars($name, ENT_QUOTES, 'UTF-8'); ?>" data-href="<?php echo htmlspecialchars($fileInfo['url_path'], ENT_QUOTES, 'UTF-8'); ?>">
+                        <a href="<?php echo htmlspecialchars($fileInfo['url_path'], ENT_QUOTES, 'UTF-8'); ?>" class="clearfix" data-name="<?php echo htmlspecialchars($name, ENT_QUOTES, 'UTF-8'); ?>">
 
 
                             <div class="row">
                                 <span class="file-name col-md-7 col-sm-6 col-xs-9">
-                                    <i class="fa <?php echo $fileInfo['icon_class']; ?> fa-fw"></i>
-                                    <?php echo $name; ?>
+                                    <i class="fa <?php echo htmlspecialchars($fileInfo['icon_class'], ENT_QUOTES, 'UTF-8'); ?> fa-fw"></i>
+                                    <?php echo htmlspecialchars($name, ENT_QUOTES, 'UTF-8'); ?>
                                 </span>
 
                                 <span class="file-size col-md-2 col-sm-2 col-xs-3 text-right">
-                                    <?php echo $fileInfo['file_size']; ?>
+                                    <?php echo htmlspecialchars($fileInfo['file_size'], ENT_QUOTES, 'UTF-8'); ?>
                                 </span>
 
                                 <span class="file-modified col-md-3 col-sm-4 hidden-xs text-right">
-                                    <?php echo $fileInfo['mod_time']; ?>
+                                    <?php echo htmlspecialchars($fileInfo['mod_time'], ENT_QUOTES, 'UTF-8'); ?>
                                 </span>
                             </div>
 
@@ -119,7 +119,7 @@
 
                         <?php if (is_file($fileInfo['file_path'])): ?>
 
-                            <a href="javascript:void(0)" class="file-info-button">
+                                <a href="javascript:void(0)" class="file-info-button">
                                 <i class="fa fa-info-circle"></i>
                             </a>
 
@@ -127,7 +127,7 @@
 
                             <?php if ($lister->containsIndex($fileInfo['file_path'])): ?>
 
-                                <a href="<?php echo $fileInfo['file_path']; ?>" class="web-link-button" <?php if($lister->externalLinksNewWindow()): ?>target="_blank"<?php endif; ?>>
+                                <a href="<?php echo htmlspecialchars($fileInfo['file_path'], ENT_QUOTES, 'UTF-8'); ?>" class="web-link-button" <?php if($lister->externalLinksNewWindow()): ?>target="_blank"<?php endif; ?>>
                                     <i class="fa fa-external-link"></i>
                                 </a>
 
@@ -165,6 +165,11 @@
                                 <tr>
                                     <td class="table-title">SHA1</td>
                                     <td class="sha1-hash">{{sha1_sum}}</td>
+                                </tr>
+
+                                <tr>
+                                    <td class="table-title">Size</td>
+                                    <td class="filesize">{{size}}</td>
                                 </tr>
 
                             </tbody>
