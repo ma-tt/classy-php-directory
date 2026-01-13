@@ -35,4 +35,4 @@ Verify that you have PHP 5.3 or later installed and running.
 ## License
 
 Classy PHP Directory is distributed under the terms of the
-[MIT License](http://www.opensource.org/licenses/mit-license.php).
+[MIT License](http://www.opensource.org/licenses/mit-license.php)..
