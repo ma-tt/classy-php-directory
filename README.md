@@ -2,7 +2,7 @@
 
 A simple and classy PHP directory lister.
 
-![screenshot](/themes/screenshot.png)
+![screenshot](/_resources/screenshot.png)
 
 ## Introduction
 
