@@ -2,7 +2,7 @@
 
 A simple and classy PHP directory lister.
 
-![alt tag](http://i.imgur.com/qIKLepW.png)
+![screenshot](/screenshot.png)
 
 ## Introduction
 
