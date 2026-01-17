@@ -30,7 +30,7 @@ Edit `_resources/config.php`:
 - `index_files` — files that make a folder a direct link (e.g. `index.php`).
 - `hash_size_limit` — max bytes allowed for checksum generation.
 
-## Thanks
+## Contributions
 
 Thanks to [Chris Kankiewicz](http://www.chriskankiewicz.com/).
 
