@@ -36,4 +36,8 @@ Thanks to [Chris Kankiewicz](http://www.chriskankiewicz.com/).
 
 ## License
 
-This project is licensed under the [MIT License](http://www.opensource.org/licenses/mit-license.php).
+[Classy PHP Directory](https://github.com/ma-tt/classy-php-directory) © 2026 by [ma-tt](https://github.com/ma-tt) is licensed by the [MIT License](http://www.opensource.org/licenses/mit-license.php)
+
+## Credits
+
+Created by [ma-tt](https://github.com/ma-tt).
