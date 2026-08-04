@@ -9,6 +9,12 @@
     // Restrict access to current directory
     ini_set('open_basedir', getcwd());
 
+    // Same headers as the .htaccess, set here too so PHP-served responses
+    // are covered even on hosts without mod_headers (e.g. nginx)
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: SAMEORIGIN');
+    header("Content-Security-Policy: object-src 'none'; frame-ancestors 'self'");
+
     // Return file hash
     if (isset($_GET['hash'])) {
 
@@ -34,17 +40,23 @@
 
     } else {
 
+        // Page number for the listing, defaults to 1 on anything invalid
+        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        if ($page < 1) {
+            $page = 1;
+        }
+
         // Initialize the directory array
         if (isset($_GET['dir'])) {
             $dirParam = $_GET['dir'];
             // Basic sanitization for directory parameter
             if (strpos($dirParam, "\0") !== false || strpos($dirParam, '..') !== false || strpos($dirParam, '/') === 0 || strpos($dirParam, '<') !== false || strpos($dirParam, '>') !== false) {
-                $dirArray = $lister->listDirectory('.');
+                $dirArray = $lister->listDirectory('.', $page);
             } else {
-                $dirArray = $lister->listDirectory($dirParam);
+                $dirArray = $lister->listDirectory($dirParam, $page);
             }
         } else {
-            $dirArray = $lister->listDirectory('.');
+            $dirArray = $lister->listDirectory('.', $page);
         }
 
         // Define theme path

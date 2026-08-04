@@ -1,6 +1,6 @@
 $(document).ready(function() {
 
-    // Reflect the current theme (set pre-paint in layout.php, or the OS default) in the toggle icon
+    // Show the right icon for whatever theme is active
     var $themeIcon = $('#theme-toggle i');
 
     function currentTheme() {

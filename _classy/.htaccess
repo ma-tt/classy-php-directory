@@ -1,7 +1,6 @@
-# Block direct access to the PHP source/config in this folder. Only the
-# static theme assets under themes/*/css, */js, */img are ever meant to be
-# requested directly by the browser — everything else routes through
-# index.php.
+# Block direct access to the PHP source/config here. Only the theme's
+# CSS/JS/img assets should ever be requested directly, everything else
+# goes through index.php.
 <IfModule mod_authz_core.c>
     <FilesMatch "\.php$">
         Require all denied
@@ -15,3 +14,18 @@
 </IfModule>
 
 Options -Indexes -FollowSymLinks +SymLinksIfOwnerMatch
+
+# Let browsers cache the theme's CSS/JS/fonts for a week instead of
+# refetching them on every visit. These only change when the theme
+# itself is updated, which isn't something that happens on a whim.
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+    ExpiresByType text/javascript "access plus 1 week"
+    ExpiresByType font/woff "access plus 1 week"
+    ExpiresByType font/woff2 "access plus 1 week"
+    ExpiresByType font/ttf "access plus 1 week"
+    ExpiresByType application/vnd.ms-fontobject "access plus 1 week"
+    ExpiresByType image/png "access plus 1 week"
+</IfModule>

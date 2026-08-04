@@ -1,11 +1,8 @@
-# Classy PHP Directory — Apache hardening
-#
-# hidden_files in _classy/config.php only hides entries from the
-# generated listing; it does nothing to stop a direct request for the
-# file's URL. These rules close that gap at the web-server level.
+# hidden_files in _classy/config.php only hides things from the listing,
+# it doesn't stop a direct request for the URL. These rules cover that.
 
-# Block direct access to dotfiles (.env, .git, .htpasswd, backups, etc.)
-# that may already be sitting in the directory this was dropped into.
+# Block dotfiles (.env, .git, .htpasswd, etc.) that might already be
+# sitting in the folder this got dropped into.
 <IfModule mod_authz_core.c>
     <FilesMatch "^\.">
         Require all denied
@@ -23,10 +20,18 @@
     RewriteRule "(^|/)\.(?!well-known)" - [F]
 </IfModule>
 
-# Don't show a raw file listing if index.php is ever missing/misconfigured.
-# Only follow symlinks placed in the served directory when the symlink is
-# owned by the same user as its target — blocks the classic trick of
-# symlinking to /etc/passwd or another root-owned file to read it directly
-# (SymLinksIfOwnerMatch, rather than a flat -FollowSymLinks, so the
-# RewriteRule above keeps working).
+# No raw directory listing if index.php ever goes missing. Only follow
+# symlinks owned by the same user as their target, so a symlink to
+# /etc/passwd or similar won't get served.
 Options -Indexes -FollowSymLinks +SymLinksIfOwnerMatch
+
+# A few headers so a stray .svg/.html someone dropped in the folder can't
+# do much if it's opened directly, and this page can't get framed by
+# another site. Deliberately not touching script-src/style-src here since
+# people drop their own analytics.inc or header.php/footer.php in and
+# those need to keep working with zero config.
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Content-Security-Policy "object-src 'none'; frame-ancestors 'self'"
+</IfModule>

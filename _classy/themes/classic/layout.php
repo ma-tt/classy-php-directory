@@ -7,7 +7,7 @@
         <title>Directory listing of <?php echo htmlspecialchars($lister->getListedPath(), ENT_QUOTES, 'UTF-8'); ?></title>
         <link rel="shortcut icon" href="<?php echo THEMEPATH; ?>/img/folder.png">
 
-        <!-- Set the theme before first paint so switching pages/reloading doesn't flash the wrong colors -->
+        <!-- Set theme before first paint, avoids a flash of the wrong colors -->
         <script>
             (function() {
                 var stored = localStorage.getItem('classy-theme');
@@ -126,7 +126,7 @@
 
                         </a>
 
-                        <?php if (is_file($fileInfo['file_path'])): ?>
+                        <?php if (!$fileInfo['is_dir']): ?>
 
                                 <a href="javascript:void(0)" class="file-info-button">
                                 <i class="bi bi-info-circle"></i>
@@ -148,6 +148,53 @@
                 <?php endforeach; ?>
 
             </ul>
+
+            <?php $totalPages = $lister->getTotalPages(); ?>
+            <?php if ($totalPages > 1): ?>
+                <?php
+                    $currentPage = $lister->getCurrentPage();
+                    $window = 2;
+                    $rangeStart = max(1, $currentPage - $window);
+                    $rangeEnd = min($totalPages, $currentPage + $window);
+                ?>
+                <nav>
+                    <ul id="directory-pagination" class="pagination">
+
+                        <?php if ($currentPage > 1): ?>
+                            <li><a href="<?php echo htmlspecialchars($lister->getPageLink($currentPage - 1), ENT_QUOTES, 'UTF-8'); ?>">&laquo;</a></li>
+                        <?php else: ?>
+                            <li class="disabled"><span>&laquo;</span></li>
+                        <?php endif; ?>
+
+                        <?php if ($rangeStart > 1): ?>
+                            <li><a href="<?php echo htmlspecialchars($lister->getPageLink(1), ENT_QUOTES, 'UTF-8'); ?>">1</a></li>
+                            <?php if ($rangeStart > 2): ?>
+                                <li class="disabled"><span>&hellip;</span></li>
+                            <?php endif; ?>
+                        <?php endif; ?>
+
+                        <?php for ($p = $rangeStart; $p <= $rangeEnd; $p++): ?>
+                            <li class="<?php echo $p == $currentPage ? 'active' : ''; ?>">
+                                <a href="<?php echo htmlspecialchars($lister->getPageLink($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo $p; ?></a>
+                            </li>
+                        <?php endfor; ?>
+
+                        <?php if ($rangeEnd < $totalPages): ?>
+                            <?php if ($rangeEnd < $totalPages - 1): ?>
+                                <li class="disabled"><span>&hellip;</span></li>
+                            <?php endif; ?>
+                            <li><a href="<?php echo htmlspecialchars($lister->getPageLink($totalPages), ENT_QUOTES, 'UTF-8'); ?>"><?php echo $totalPages; ?></a></li>
+                        <?php endif; ?>
+
+                        <?php if ($currentPage < $totalPages): ?>
+                            <li><a href="<?php echo htmlspecialchars($lister->getPageLink($currentPage + 1), ENT_QUOTES, 'UTF-8'); ?>">&raquo;</a></li>
+                        <?php else: ?>
+                            <li class="disabled"><span>&raquo;</span></li>
+                        <?php endif; ?>
+
+                    </ul>
+                </nav>
+            <?php endif; ?>
         </div>
 
         <?php file_exists('footer.php') ? include('footer.php') : include($lister->getThemePath(true) . "/footer.php"); ?>

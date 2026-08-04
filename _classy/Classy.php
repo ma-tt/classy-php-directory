@@ -14,6 +14,8 @@ class Classy {
     protected $_fileTypes     = null;
     protected $_systemMessage = null;
     protected $_hiddenFilesMerged = false;
+    protected $_currentPage   = 1;
+    protected $_totalPages    = 1;
 
 
     /**
@@ -133,9 +135,8 @@ class Classy {
 
         foreach ($files as $file) {
             $filePath = $file->getPathname();
-            // Build relative path from the iterator's own sub-path tracking,
-            // rather than stripping $baseDir as a substring (which mangles
-            // filenames when $baseDir is '.', since every '.' gets stripped)
+            // Use the iterator's own sub-path instead of stripping $baseDir as
+            // a substring; that mangles filenames when $baseDir is '.'
             $relativePath = $files->getSubPathname();
             // Normalize to forward slashes for matching
             $relativeForMatch = str_replace(DIRECTORY_SEPARATOR, '/', $relativePath);
@@ -155,8 +156,7 @@ class Classy {
             if ($zipCreated) {
                 $zip->addFile($filePath, $relativePath);
 
-                // Apply the configured compression level (0 = store uncompressed,
-                // matching the shell fallback's `zip -0` convention below)
+                // 0 means store uncompressed, same as the shell fallback's zip -0
                 $compressionLevel = (int)$this->_config['zip_compression_level'];
                 if ($compressionLevel <= 0) {
                     $zip->setCompressionName($relativePath, ZipArchive::CM_STORE);
@@ -228,10 +228,11 @@ class Classy {
      * Creates the directory listing and returns the formatted XHTML
      *
      * @param string $directory Relative path of directory to list
+     * @param int $page Page number to show (1-indexed)
      * @return array Array of directory being listed
      * @access public
      */
-    public function listDirectory($directory) {
+    public function listDirectory($directory, $page = 1) {
 
         // Set directory
         $directory = $this->setDirectoryPath($directory);
@@ -244,8 +245,80 @@ class Classy {
         // Get the directory array
         $directoryArray = $this->_readDirectory($directory);
 
+        // Keep the ".." row pinned to every page instead of paginating it away
+        $parentEntry = null;
+        if (isset($directoryArray['..'])) {
+            $parentEntry = $directoryArray['..'];
+            unset($directoryArray['..']);
+        }
+
+        // Work out which page we're on
+        $pageSize = (int)$this->_config['items_per_page'];
+        $totalItems = count($directoryArray);
+        $this->_totalPages = ($pageSize > 0) ? max(1, (int)ceil($totalItems / $pageSize)) : 1;
+
+        $page = (int)$page;
+        if ($page < 1) {
+            $page = 1;
+        } elseif ($page > $this->_totalPages) {
+            $page = $this->_totalPages;
+        }
+        $this->_currentPage = $page;
+
+        if ($pageSize > 0 && $totalItems > $pageSize) {
+            $directoryArray = array_slice($directoryArray, ($page - 1) * $pageSize, $pageSize, true);
+        }
+
+        if ($parentEntry !== null) {
+            $directoryArray = array('..' => $parentEntry) + $directoryArray;
+        }
+
         // Return the array
         return $directoryArray;
+    }
+
+
+    /**
+     * Returns the current page number for the listing
+     *
+     * @return int
+     * @access public
+     */
+    public function getCurrentPage() {
+        return $this->_currentPage;
+    }
+
+
+    /**
+     * Returns the total number of pages for the current listing
+     *
+     * @return int
+     * @access public
+     */
+    public function getTotalPages() {
+        return $this->_totalPages;
+    }
+
+
+    /**
+     * Builds a link to a given page of the current directory listing
+     *
+     * @param int $page Page number to link to
+     * @return string Relative URL, e.g. "?dir=foo&page=2"
+     * @access public
+     */
+    public function getPageLink($page) {
+
+        $link = '?';
+
+        if ($this->_directory !== '.' && $this->_directory !== '') {
+            $encodedDir = implode('/', array_map('rawurlencode', explode('/', $this->_directory)));
+            $link .= 'dir=' . $encodedDir . '&';
+        }
+
+        $link .= 'page=' . (int)$page;
+
+        return $link;
     }
 
 
@@ -424,9 +497,8 @@ class Classy {
         // Get file size
         $bytes = filesize($filePath);
 
-        // filesize() fails on broken symlinks, unreadable/permission-denied
-        // files, etc. — bail out with a placeholder instead of computing
-        // garbage from a false value
+        // filesize() returns false on broken symlinks or unreadable files,
+        // so bail out here instead of computing garbage from that
         if ($bytes === false) {
             return '-';
         }
@@ -489,9 +561,20 @@ class Classy {
             return $hashArray;
         }
 
-        // Generate file hashes
-        $hashArray['md5']  = hash_file('md5', $real);
-        $hashArray['sha1'] = hash_file('sha1', $real);
+        // Generate both hashes in one read pass instead of reading the file twice
+        $md5Ctx  = hash_init('md5');
+        $sha1Ctx = hash_init('sha1');
+        $handle = fopen($real, 'rb');
+        if ($handle !== false) {
+            while (!feof($handle)) {
+                $chunk = fread($handle, 1048576);
+                hash_update($md5Ctx, $chunk);
+                hash_update($sha1Ctx, $chunk);
+            }
+            fclose($handle);
+            $hashArray['md5']  = hash_final($md5Ctx);
+            $hashArray['sha1'] = hash_final($sha1Ctx);
+        }
 
         return $hashArray;
 
@@ -648,9 +731,10 @@ class Classy {
 
                     // Get files absolute path
                     $realPath = realpath($relativePath);
+                    $isDir = is_dir($realPath);
 
                     // Determine file type by extension
-                    if (is_dir($realPath)) {
+                    if ($isDir) {
                         $iconClass = 'bi-folder-fill';
                         $sort = 1;
                     } else {
@@ -688,6 +772,7 @@ class Classy {
                             'file_size'  => '-',
                             'mod_time'   => date('Y-m-d H:i:s', filemtime($realPath)),
                             'icon_class' => 'bi-arrow-90deg-up',
+                            'is_dir'     => true,
                             'sort'       => 0
                         );
                     }
@@ -700,19 +785,18 @@ class Classy {
                         // Build the file path
                         $urlPath = implode('/', array_map('rawurlencode', explode('/', $relativePath)));
 
-                        if (is_dir($relativePath)) {
+                        if ($isDir) {
                             $urlPath = '?dir=' . $urlPath;
-                        } else {
-                            $urlPath = $urlPath;
                         }
 
                         // Add the info to the main array
                         $directoryArray[pathinfo($relativePath, PATHINFO_BASENAME)] = array(
                             'file_path'  => $relativePath,
                             'url_path'   => $urlPath,
-                            'file_size'  => is_dir($realPath) ? '-' : $this->getFileSize($realPath),
+                            'file_size'  => $isDir ? '-' : $this->getFileSize($realPath),
                             'mod_time'   => date('Y-m-d H:i:s', filemtime($realPath)),
                             'icon_class' => $iconClass,
+                            'is_dir'     => $isDir,
                             'sort'       => $sort
                         );
                     }
@@ -842,7 +926,7 @@ class Classy {
      */
     protected function _isHidden($filePath) {
 
-        // Normalize variants to test against patterns: original, without leading ./ or /, basename, and realpath
+        // Check the path a few different ways since patterns might match any of them
         $variants = array();
         $variants[] = $filePath;
         $variants[] = ltrim($filePath, './');

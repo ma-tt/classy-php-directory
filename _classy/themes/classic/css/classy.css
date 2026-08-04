@@ -2,7 +2,7 @@
 /* -----| THEME |---------------------------------------------------------------------------------- */
 /* ---------------------------------------------------------------------------------------------- */
 
-/* Light values match Bootstrap's own defaults, so nothing below changes light-mode rendering. */
+/* Light values match Bootstrap's defaults, so light mode looks unchanged. */
 :root {
     --classy-bg: #ffffff;
     --classy-text: #333333;
@@ -17,8 +17,8 @@
     --classy-table-border: #dddddd;
 }
 
-/* Follows the OS/browser preference unless the toggle button has set an explicit choice
-   (classy.js sets data-theme on <html>, which always wins over the media query). */
+/* Follows the OS preference unless classy.js has set data-theme explicitly,
+   which always wins over this media query. */
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
         --classy-bg: #1a1a1a;
@@ -80,14 +80,41 @@ a:focus {
     border-left: 4px solid var(--classy-text);
 }
 
+.pagination > li > a,
+.pagination > li > span {
+    color: var(--classy-text);
+    background-color: var(--classy-bg);
+    border-color: var(--classy-border);
+}
+
+.pagination > li > a:hover,
+.pagination > li > a:focus {
+    color: var(--classy-text);
+    background-color: var(--classy-surface-hover);
+    border-color: var(--classy-border);
+}
+
+.pagination > .active > a,
+.pagination > .active > a:hover,
+.pagination > .active > a:focus {
+    color: var(--classy-bg);
+    background-color: var(--classy-text);
+    border-color: var(--classy-text);
+}
+
+.pagination > .disabled > span {
+    color: var(--classy-muted);
+    background-color: var(--classy-bg);
+    border-color: var(--classy-border);
+}
+
 #page-navbar.navbar-default {
     background-color: var(--classy-surface);
     border-color: var(--classy-border);
 }
 
-/* Bootstrap's .navbar-right cancels the container's 15px padding (margin-right: -15px)
-   so nav items sit flush with the outer edge of the container box. That breaks the
-   left/right margin the rest of the page's content respects, so we neutralize it here. */
+/* Bootstrap's .navbar-right has a -15px margin that pushes it past the
+   margin everything else on the page respects. Cancel that out. */
 #page-navbar .navbar-right {
     margin-right: 0;
 }
@@ -192,6 +219,12 @@ body.breadcrumb-fixed {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+#directory-pagination {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0 0;
 }
 
 .file-name i {
