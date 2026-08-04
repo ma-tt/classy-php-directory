@@ -7,19 +7,26 @@
         <title>Directory listing of <?php echo htmlspecialchars($lister->getListedPath(), ENT_QUOTES, 'UTF-8'); ?></title>
         <link rel="shortcut icon" href="<?php echo THEMEPATH; ?>/img/folder.png">
 
-        <!-- STYLES -->
-        <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
-        <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
-        <link rel="stylesheet" type="text/css" href="<?php echo THEMEPATH; ?>/css/style.css">
+        <!-- Set the theme before first paint so switching pages/reloading doesn't flash the wrong colors -->
+        <script>
+            (function() {
+                var stored = localStorage.getItem('classy-theme');
+                if (stored === 'dark' || stored === 'light') {
+                    document.documentElement.setAttribute('data-theme', stored);
+                }
+            })();
+        </script>
+
+        <!-- STYLES (self-hosted: no CDN dependency, nothing to SRI-pin) -->
+        <link rel="stylesheet" href="<?php echo THEMEPATH; ?>/vendor/bootstrap/css/bootstrap.min.css">
+        <link rel="stylesheet" href="<?php echo THEMEPATH; ?>/vendor/bootstrap-icons/bootstrap-icons.css">
+        <link rel="stylesheet" href="<?php echo THEMEPATH; ?>/vendor/roboto/roboto.css">
+        <link rel="stylesheet" type="text/css" href="<?php echo THEMEPATH; ?>/css/classy.css">
 
         <!-- SCRIPTS -->
-        <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
-        <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
-        <script type="text/javascript" src="<?php echo THEMEPATH; ?>/js/directorylister.js"></script>
-
-        <!-- FONTS -->
-        <link rel="stylesheet" type="text/css"  href="//fonts.googleapis.com/css?family=Cutive+Mono">
-        <link rel="stylesheet" type="text/css"  href="//fonts.googleapis.com/css?family=Roboto:400,300">
+        <script type="text/javascript" src="<?php echo THEMEPATH; ?>/vendor/jquery/jquery.min.js"></script>
+        <script src="<?php echo THEMEPATH; ?>/vendor/bootstrap/js/bootstrap.min.js"></script>
+        <script type="text/javascript" src="<?php echo THEMEPATH; ?>/js/classy.js"></script>
 
         <!-- META -->
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -47,34 +54,36 @@
                     <?php endforeach; ?>
                 </p>
 
-                <div class="navbar-right">
+                <ul class="nav navbar-nav navbar-right">
 
-                    <ul id="page-top-nav" class="nav navbar-nav">
-                        <li>
-                            <a href="javascript:void(0)" id="page-top-link">
-                                <i class="fa fa-arrow-circle-up fa-lg"></i>
-                            </a>
-                        </li>
-                    </ul>
+                    <li id="page-top-nav">
+                        <a href="javascript:void(0)" id="page-top-link">
+                            <i class="bi bi-arrow-up-circle bi-lg"></i>
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="javascript:void(0)" id="theme-toggle" title="Toggle dark mode">
+                            <i class="bi bi-moon bi-lg"></i>
+                        </a>
+                    </li>
 
                     <?php  if ($lister->isZipEnabled()): ?>
-                        <ul id="page-top-download-all" class="nav navbar-nav">
-                            <li>
-                                <a href="?zip=<?php echo $lister->getDirectoryPath(); ?>" id="download-all-link">
-                                    <i class="fa fa-download fa-lg"></i>
-                                </a>
-                            </li>
-                        </ul>
+                        <li id="page-top-download-all">
+                            <a href="?zip=<?php echo $lister->getDirectoryPath(); ?>" id="download-all-link">
+                                <i class="bi bi-download bi-lg"></i>
+                            </a>
+                        </li>
                     <?php endif; ?>
 
-                </div>
+                </ul>
 
             </div>
         </div>
 
         <div id="page-content" class="container">
 
-            <?php file_exists('header.php') ? include('header.php') : include($lister->getThemePath(true) . "/default_header.php"); ?>
+            <?php file_exists('header.php') ? include('header.php') : include($lister->getThemePath(true) . "/header.php"); ?>
 
             <?php if($lister->getSystemMessages()): ?>
                 <?php foreach ($lister->getSystemMessages() as $message): ?>
@@ -102,7 +111,7 @@
 
                             <div class="row">
                                 <span class="file-name col-md-7 col-sm-6 col-xs-9">
-                                    <i class="fa <?php echo htmlspecialchars($fileInfo['icon_class'], ENT_QUOTES, 'UTF-8'); ?> fa-fw"></i>
+                                    <i class="bi <?php echo htmlspecialchars($fileInfo['icon_class'], ENT_QUOTES, 'UTF-8'); ?>"></i>
                                     <?php echo htmlspecialchars($name, ENT_QUOTES, 'UTF-8'); ?>
                                 </span>
 
@@ -120,7 +129,7 @@
                         <?php if (is_file($fileInfo['file_path'])): ?>
 
                                 <a href="javascript:void(0)" class="file-info-button">
-                                <i class="fa fa-info-circle"></i>
+                                <i class="bi bi-info-circle"></i>
                             </a>
 
                         <?php else: ?>
@@ -128,7 +137,7 @@
                             <?php if ($lister->containsIndex($fileInfo['file_path'])): ?>
 
                                 <a href="<?php echo htmlspecialchars($fileInfo['file_path'], ENT_QUOTES, 'UTF-8'); ?>" class="web-link-button" <?php if($lister->externalLinksNewWindow()): ?>target="_blank"<?php endif; ?>>
-                                    <i class="fa fa-external-link"></i>
+                                    <i class="bi bi-box-arrow-up-right"></i>
                                 </a>
 
                             <?php endif; ?>
@@ -141,7 +150,7 @@
             </ul>
         </div>
 
-        <?php file_exists('footer.php') ? include('footer.php') : include($lister->getThemePath(true) . "/default_footer.php"); ?>
+        <?php file_exists('footer.php') ? include('footer.php') : include($lister->getThemePath(true) . "/footer.php"); ?>
 
         <div id="file-info-modal" class="modal fade">
             <div class="modal-dialog">

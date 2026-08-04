@@ -1,10 +1,10 @@
 <?php
 
-    // Include the DirectoryLister class
-    require_once('_resources/DirectoryLister.php');
+    // Include the Classy class
+    require_once('_classy/Classy.php');
 
-    // Initialize the DirectoryLister object
-    $lister = new DirectoryLister();
+    // Initialize the Classy object
+    $lister = new Classy();
 
     // Restrict access to current directory
     ini_set('open_basedir', getcwd());
@@ -14,7 +14,7 @@
 
         // Return JSON-encoded file hash information
         header('Content-Type: application/json; charset=utf-8');
-        $hashParam = isset($_GET['hash']) ? rawurldecode($_GET['hash']) : '';
+        $hashParam = isset($_GET['hash']) ? $_GET['hash'] : '';
         // Basic sanitization: disallow absolute paths, null bytes, and parent traversal
         if (strpos($hashParam, "\0") !== false || strpos($hashParam, '..') !== false || strpos($hashParam, '/') === 0 || strpos($hashParam, '<') !== false || strpos($hashParam, '>') !== false) {
             http_response_code(400);
@@ -36,7 +36,7 @@
 
         // Initialize the directory array
         if (isset($_GET['dir'])) {
-            $dirParam = rawurldecode($_GET['dir']);
+            $dirParam = $_GET['dir'];
             // Basic sanitization for directory parameter
             if (strpos($dirParam, "\0") !== false || strpos($dirParam, '..') !== false || strpos($dirParam, '/') === 0 || strpos($dirParam, '<') !== false || strpos($dirParam, '>') !== false) {
                 $dirArray = $lister->listDirectory('.');
@@ -52,8 +52,8 @@
             define('THEMEPATH', $lister->getThemePath());
         }
 
-        // Set path to theme index
-        $themeIndex = $lister->getThemePath(true) . '/index.php';
+        // Set path to theme layout template
+        $themeIndex = $lister->getThemePath(true) . '/layout.php';
 
         // Initialize the theme
         if (file_exists($themeIndex)) {

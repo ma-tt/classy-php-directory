@@ -1,0 +1,7 @@
+*.md
+!README.md
+.*/
+.*
+!.gitignore
+!.htaccess
+icon-test/
