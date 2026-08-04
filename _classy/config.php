@@ -9,6 +9,10 @@ return array(
     'theme_name'                => 'classic',
     'external_links_new_window' => true,
 
+    // Max entries shown per page before older ones get pushed to page 2, 3, etc.
+    // Set to 0 to turn pagination off and list everything on one page.
+    'items_per_page' => 250,
+
     // Hidden files
     'hidden_files' => array(
         '.ht*',

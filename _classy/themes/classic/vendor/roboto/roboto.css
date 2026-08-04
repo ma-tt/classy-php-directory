@@ -1,4 +1,4 @@
-/* Self-hosted Roboto (latin + latin-ext only — non-Latin text falls back
+/* Self-hosted Roboto (latin + latin-ext only, non-Latin text falls back
    to the sans-serif in the font-family stack rather than pulling in the
    full multi-script Google Fonts payload). */
 @font-face {
