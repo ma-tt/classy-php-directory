@@ -6,7 +6,7 @@ return array(
     'hide_dot_files'            => true,
     'list_folders_first'        => true,
     'list_sort_order'           => 'natcasesort',
-    'theme_name'                => 'bootstrap',
+    'theme_name'                => 'classic',
     'external_links_new_window' => true,
 
     // Hidden files
@@ -14,11 +14,12 @@ return array(
         '.ht*',
         '*/.ht*',
         'robots.txt',
-        '_resources',
-        '_resources/*',
+        '_classy',
+        '_classy/*',
         'analytics.inc',
         'LICENSE',
         'README.md',
+        'REVIEW.md',
         'header.php',
         'footer.php',
         'favicon.*',
@@ -43,10 +44,6 @@ return array(
 
     // Allow to download directories as zip files
     'zip_dirs' => false,
-
-    // Stream zip file content directly to the client,
-    // without any temporary file
-    'zip_stream' => true,
 
     'zip_compression_level' => 0,
 

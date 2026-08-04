@@ -1,0 +1,32 @@
+# Classy PHP Directory — Apache hardening
+#
+# hidden_files in _classy/config.php only hides entries from the
+# generated listing; it does nothing to stop a direct request for the
+# file's URL. These rules close that gap at the web-server level.
+
+# Block direct access to dotfiles (.env, .git, .htpasswd, backups, etc.)
+# that may already be sitting in the directory this was dropped into.
+<IfModule mod_authz_core.c>
+    <FilesMatch "^\.">
+        Require all denied
+    </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+    <FilesMatch "^\.">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule "(^|/)\.(?!well-known)" - [F]
+</IfModule>
+
+# Don't show a raw file listing if index.php is ever missing/misconfigured.
+# Only follow symlinks placed in the served directory when the symlink is
+# owned by the same user as its target — blocks the classic trick of
+# symlinking to /etc/passwd or another root-owned file to read it directly
+# (SymLinksIfOwnerMatch, rather than a flat -FollowSymLinks, so the
+# RewriteRule above keeps working).
+Options -Indexes -FollowSymLinks +SymLinksIfOwnerMatch

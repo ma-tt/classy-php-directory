@@ -1,6 +1,6 @@
 <?php
 
-class DirectoryLister {
+class Classy {
 
     // Define application version
     const VERSION = '2.6.1';
@@ -17,14 +17,9 @@ class DirectoryLister {
 
 
     /**
-     * DirectoryLister construct function. Runs on object creation.
+     * Classy construct function. Runs on object creation.
      */
     public function __construct() {
-
-        // Set class directory constant
-        if(!defined('__DIR__')) {
-            define('__DIR__', dirname(__FILE__));
-        }
 
         // Set application directory
         $this->_appDir = __DIR__;
@@ -43,7 +38,7 @@ class DirectoryLister {
         }
 
         // Set the file types array to a global variable
-        $this->_fileTypes = require_once($this->_appDir . '/fileTypes.php');
+        $this->_fileTypes = require_once($this->_appDir . '/filetypes.php');
 
         // Set the theme name
         $this->_themeName = $this->_config['theme_name'];
@@ -138,8 +133,10 @@ class DirectoryLister {
 
         foreach ($files as $file) {
             $filePath = $file->getPathname();
-            // Build relative path
-            $relativePath = ltrim(str_replace($baseDir, '', $filePath), DIRECTORY_SEPARATOR);
+            // Build relative path from the iterator's own sub-path tracking,
+            // rather than stripping $baseDir as a substring (which mangles
+            // filenames when $baseDir is '.', since every '.' gets stripped)
+            $relativePath = $files->getSubPathname();
             // Normalize to forward slashes for matching
             $relativeForMatch = str_replace(DIRECTORY_SEPARATOR, '/', $relativePath);
 
@@ -157,6 +154,15 @@ class DirectoryLister {
             // Add file to zip under its relative path
             if ($zipCreated) {
                 $zip->addFile($filePath, $relativePath);
+
+                // Apply the configured compression level (0 = store uncompressed,
+                // matching the shell fallback's `zip -0` convention below)
+                $compressionLevel = (int)$this->_config['zip_compression_level'];
+                if ($compressionLevel <= 0) {
+                    $zip->setCompressionName($relativePath, ZipArchive::CM_STORE);
+                } else {
+                    $zip->setCompressionName($relativePath, ZipArchive::CM_DEFLATE, min($compressionLevel, 9));
+                }
             } else {
                 // Collect files for shell fallback
                 $shellFiles[] = array('full' => $filePath, 'rel' => $relativePath);
@@ -418,11 +424,19 @@ class DirectoryLister {
         // Get file size
         $bytes = filesize($filePath);
 
+        // filesize() fails on broken symlinks, unreadable/permission-denied
+        // files, etc. — bail out with a placeholder instead of computing
+        // garbage from a false value
+        if ($bytes === false) {
+            return '-';
+        }
+
         // Array of file size suffixes
         $sizes = array('B', 'KB', 'MB', 'GB', 'TB', 'PB');
 
-        // Calculate file size suffix factor
-        $factor = floor((strlen($bytes) - 1) / 3);
+        // Calculate file size suffix factor, clamped to a valid index
+        $factor = (int) floor((strlen((string) $bytes) - 1) / 3);
+        $factor = max(0, min($factor, count($sizes) - 1));
 
         // Calculate the file size
         $fileSize = sprintf('%.2f', $bytes / pow(1024, $factor)) . $sizes[$factor];
@@ -637,7 +651,7 @@ class DirectoryLister {
 
                     // Determine file type by extension
                     if (is_dir($realPath)) {
-                        $iconClass = 'fa-folder';
+                        $iconClass = 'bi-folder-fill';
                         $sort = 1;
                     } else {
                         // Get file extension
@@ -673,7 +687,7 @@ class DirectoryLister {
                             'url_path'   => $this->_appURL . $directoryPath,
                             'file_size'  => '-',
                             'mod_time'   => date('Y-m-d H:i:s', filemtime($realPath)),
-                            'icon_class' => 'fa-level-up',
+                            'icon_class' => 'bi-arrow-90deg-up',
                             'sort'       => 0
                         );
                     }

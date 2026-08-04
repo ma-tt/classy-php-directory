@@ -1,0 +1,17 @@
+# Block direct access to the PHP source/config in this folder. Only the
+# static theme assets under themes/*/css, */js, */img are ever meant to be
+# requested directly by the browser — everything else routes through
+# index.php.
+<IfModule mod_authz_core.c>
+    <FilesMatch "\.php$">
+        Require all denied
+    </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+    <FilesMatch "\.php$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+</IfModule>
+
+Options -Indexes -FollowSymLinks +SymLinksIfOwnerMatch

@@ -1,5 +1,30 @@
 $(document).ready(function() {
 
+    // Reflect the current theme (set pre-paint in layout.php, or the OS default) in the toggle icon
+    var $themeIcon = $('#theme-toggle i');
+
+    function currentTheme() {
+        var stored = localStorage.getItem('classy-theme');
+        if (stored === 'dark' || stored === 'light') {
+            return stored;
+        }
+        return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    }
+
+    function updateThemeIcon(theme) {
+        $themeIcon.toggleClass('bi-moon', theme !== 'dark');
+        $themeIcon.toggleClass('bi-sun', theme === 'dark');
+    }
+
+    updateThemeIcon(currentTheme());
+
+    $('#theme-toggle').click(function() {
+        var next = currentTheme() === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('classy-theme', next);
+        updateThemeIcon(next);
+    });
+
     // Get page-content original position
     var contentTop = $('#page-content').offset().top;
 
