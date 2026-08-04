@@ -99,4 +99,4 @@ Thanks to [Chris Kankiewicz](http://www.chriskankiewicz.com/)
 
 ## Credits
 
-Created by [ma-tt](https://github.com/ma-tt). 
+Created by [ma-tt](https://github.com/ma-tt)
