@@ -12,38 +12,53 @@ whatever your web server's default directory listing looks like.
 
 ## Quick Start
 
-1. Copy `index.php`, `.htaccess`, and the `_classy/` folder (which has its own
-   `.htaccess`) into the directory you want to serve.
+1. Copy `index.php` into the directory you want to serve. That's the whole app, one file.
 2. Add files or folders to that directory.
 3. Open the folder in your browser (e.g. `http://localhost/your-folder/`).
 
-That's it. No build steps required.
+That's it. No build steps, no other files required. (Optionally also copy the `.htaccess`
+in this repo alongside it, see [Server hardening](#server-hardening) below for what it buys you.)
 
 ## Requirements
 
 - Required: PHP (any supported version on your host).
+- Optional: the `zip` PHP extension, needed for the zip-download feature (`zip_enabled`
+  in the config block, on by default). Without it, everything else still works, zip
+  downloads just show an error.
+- `index.php` loads its icon font and body font from cdnjs/Google Fonts. If that request
+  is blocked (offline server, strict corporate firewall), the page still works, it just
+  falls back to a plain file glyph and your system font instead of looking as polished.
 
 ## How to use
 
-- Click files to download, folders to navigate.
-- Click the info (i) icon to pull up checksums (MD5/SHA1) for a file.
+- Click a file's name to open it, folders to navigate. Click anywhere in that row, not
+  just the text, it's one big click target.
+- Each file row has its own info (i) and download icons at the end: info pulls up
+  checksums (MD5/SHA1), download forces a save instead of opening the file in the
+  browser. Folder rows get a zip icon instead, to grab just that folder.
+- The Name / Size / Modified column headers are clickable, to sort by any of the three.
 - The moon/sun icon in the top right toggles dark mode. It also follows your OS
   preference automatically if you never touch it.
 - Icons are per-file-type (Bootstrap Icons under the hood), so a `.pdf` doesn't look like
   a `.zip`.
+- Large folders paginate automatically (250 entries per page by default, see below).
 
 ## Configuration
 
-Edit `_classy/config.php`:
-- `hidden_files`: glob patterns or filenames to hide (example: `_classy`, `.env`).
-  Heads up: this only hides entries from the *listing*. It doesn't stop someone from
-  requesting the file's URL directly if they already know it's there. The shipped
-  `.htaccess` files close that gap on Apache (see below); if your host doesn't read
-  `.htaccess`, add equivalent rules yourself.
-- `index_files`: files that make a folder a direct link (e.g. `index.php`).
+Everything's in the `$CL_CONFIG` block near the top of `index.php`, no other file to
+touch:
+- `hidden_files`: glob patterns or filenames to hide from the listing (example: `.env`,
+  `*.log`). Heads up: this only hides entries from the *listing*, it doesn't stop
+  someone from requesting the file's URL directly if they already know it's there. The
+  optional `.htaccess` in this repo closes that gap on Apache (see below); if your host
+  doesn't read `.htaccess`, add equivalent rules yourself.
+- `hide_dot_files`: hides dotfiles (`.env`, `.git`, ...) from the listing on top of
+  whatever's in `hidden_files`. Same listing-only caveat applies.
+- `items_per_page`: how many entries show per page before pagination kicks in. `0`
+  shows everything on one page.
 - `hash_size_limit`: max bytes allowed for checksum generation.
-- `zip_dirs`: lets people download a whole folder as a zip via the download icon.
-  Off by default; flip it to `true` if you want it.
+- `zip_enabled`: lets people download a folder as a zip via the zip icon. On by default;
+  set to `false` if you don't want it.
 
 ## Restricting access
 
@@ -54,16 +69,20 @@ network-level restriction. Don't rely on the URL just being "hard to guess."
 
 ## Server hardening
 
-On **Apache**, the shipped `.htaccess` files deny direct requests to dotfiles (`.env`,
-`.git/`, etc.) and to the `_classy/*.php` sources, turn off directory listing and plain
-symlink-following (only same-owner symlinks are followed, so a symlink pointing at a
-root-owned file like `/etc/passwd` won't be served), set a few security headers
-(`X-Content-Type-Options`, `X-Frame-Options`, a light `Content-Security-Policy`) so a
-stray `.svg`/`.html` someone left in the folder can't do much if it's opened directly,
-and let browsers cache the theme's CSS/JS/fonts for a week instead of refetching them on
-every visit. They only take effect if your Apache config allows `.htaccess` overrides
-(`AllowOverride All` or at least `AllowOverride AuthConfig Limit Options Indexes` for the
-directives used here, plus `mod_headers`/`mod_expires` for the header and caching lines).
+`index.php` only hides files from its own listing, it can't stop your web server from
+serving a `.env` or `.git/` sitting in the same folder if someone requests it directly by
+URL. This repo ships an **optional** `.htaccess` for exactly that. Not required to run
+the tool, but worth copying alongside `index.php` if the folder you're serving might have
+anything sensitive in it.
+
+On **Apache**, that `.htaccess` denies direct requests to dotfiles, turns off directory
+listing and plain symlink-following (only same-owner symlinks are followed, so a symlink
+pointing at a root-owned file like `/etc/passwd` won't be served), and sets a few
+security headers (`X-Content-Type-Options`, `X-Frame-Options`, a light
+`Content-Security-Policy`) so a stray `.svg`/`.html` someone left in the folder can't do
+much if it's opened directly. It only takes effect if your Apache config allows
+`.htaccess` overrides (`AllowOverride All` or at least `AllowOverride AuthConfig Limit
+Options Indexes`, plus `mod_headers` for the header lines).
 
 On **nginx**, `.htaccess` is ignored, so add the equivalent to your site's server block:
 
@@ -72,21 +91,9 @@ location ~ /\. {
     deny all;
 }
 
-location ~ ^/_classy/.*\.php$ {
-    deny all;
-}
-
-location /_classy/ {
-    autoindex off;
-}
-
 add_header X-Content-Type-Options "nosniff" always;
 add_header X-Frame-Options "SAMEORIGIN" always;
 add_header Content-Security-Policy "object-src 'none'; frame-ancestors 'self'" always;
-
-location ~* ^/_classy/themes/.*\.(css|js|woff2?|ttf|eot|png)$ {
-    expires 1w;
-}
 ```
 
 ## Contributions
