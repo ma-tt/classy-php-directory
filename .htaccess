@@ -1,5 +1,6 @@
-# hidden_files in _classy/config.php only hides things from the listing,
-# it doesn't stop a direct request for the URL. These rules cover that.
+# Optional. Copy this next to index.php if you want it. Not required to
+# run the tool, but it closes a real gap: index.php only hides files from
+# the listing, it doesn't stop a direct request for their URL.
 
 # Block dotfiles (.env, .git, .htpasswd, etc.) that might already be
 # sitting in the folder this got dropped into.
@@ -27,9 +28,7 @@ Options -Indexes -FollowSymLinks +SymLinksIfOwnerMatch
 
 # A few headers so a stray .svg/.html someone dropped in the folder can't
 # do much if it's opened directly, and this page can't get framed by
-# another site. Deliberately not touching script-src/style-src here since
-# people drop their own analytics.inc or header.php/footer.php in and
-# those need to keep working with zero config.
+# another site.
 <IfModule mod_headers.c>
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "SAMEORIGIN"
