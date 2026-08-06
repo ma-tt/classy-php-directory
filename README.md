@@ -52,7 +52,9 @@ add_header Content-Security-Policy "object-src 'none'; frame-ancestors 'self'" a
 
 ## History
 
-Originally forked from Chris Kankiewicz's PHP Directory Lister back in 2016. Since then rewritten into a single file script.
+Originally forked from Chris Kankiewicz's PHP Directory Lister back in 2016. 
+
+Since then, completely rewritten into a single file script.
 
 ## License
 
