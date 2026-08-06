@@ -59,6 +59,7 @@ $CL_CONFIG = array(
     // single zip file.
     'zip_enabled' => true,
     'zip_compression_level' => 0, // 0 = store (fast, no compression), 1-9 = deflate level
+    'zip_size_limit' => 1073741824, // 1 GB of uncompressed input, 0 = no limit
 
     // Allow visitors to compute MD5/SHA1 checksums of individual files.
     'hash_enabled' => true,
@@ -134,6 +135,16 @@ function cl_base_url() {
     return strtok($uri, '?');
 }
 
+/** True if any '/'-separated segment of $path is exactly '..' (a real "notes..bak" file is fine). */
+function cl_has_dotdot_segment($path) {
+    foreach (explode('/', $path) as $segment) {
+        if ($segment === '..') {
+            return true;
+        }
+    }
+    return false;
+}
+
 /** Validates a directory param. Returns the cleaned path, or null if invalid/inaccessible. */
 function cl_sanitize_dir($dir, $config) {
     if ($dir === null || $dir === '') {
@@ -151,7 +162,7 @@ function cl_sanitize_dir($dir, $config) {
     if ($dir === '' || $dir === '.') {
         return '.';
     }
-    if (strpos($dir, '..') !== false || strpos($dir, '<') !== false
+    if (cl_has_dotdot_segment($dir) || strpos($dir, '<') !== false
         || strpos($dir, '>') !== false || strpos($dir, '/') === 0) {
         return null;
     }
@@ -169,7 +180,7 @@ function cl_sanitize_file_param($raw) {
     if ($raw === null || $raw === '') {
         return null;
     }
-    if (strpos($raw, "\0") !== false || strpos($raw, '..') !== false
+    if (strpos($raw, "\0") !== false || cl_has_dotdot_segment($raw)
         || strpos($raw, '<') !== false || strpos($raw, '>') !== false || strpos($raw, '/') === 0) {
         return null;
     }
@@ -357,13 +368,24 @@ function cl_zip_directory($dir, $config) {
         die('Could not create the zip archive.');
     }
 
+    // Resolved once so every file's real path can be checked against it below.
+    // A symlink inside $dir that points outside of it must not get pulled into the zip.
+    $root = realpath($dir);
+    if ($root === false) {
+        unlink($tmp);
+        http_response_code(500);
+        die('Could not resolve the target folder.');
+    }
+
     $iterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
         RecursiveIteratorIterator::LEAVES_ONLY
     );
 
     $level = (int) $config['zip_compression_level'];
+    $sizeLimit = (int) $config['zip_size_limit'];
     $hasFiles = false;
+    $totalBytes = 0;
 
     foreach ($iterator as $file) {
         // Use the iterator's own sub-path rather than stripping $dir as a substring.
@@ -375,7 +397,23 @@ function cl_zip_directory($dir, $config) {
             continue;
         }
 
-        $zip->addFile($file->getPathname(), $relativePath);
+        $realFile = realpath($file->getPathname());
+        if ($realFile === false || strpos($realFile, $root . DIRECTORY_SEPARATOR) !== 0) {
+            continue;
+        }
+
+        $bytes = @filesize($realFile);
+        if ($bytes !== false) {
+            $totalBytes += $bytes;
+        }
+        if ($sizeLimit > 0 && $totalBytes > $sizeLimit) {
+            $zip->close();
+            unlink($tmp);
+            http_response_code(413);
+            die('This folder is too large to zip (over the configured size limit).');
+        }
+
+        $zip->addFile($realFile, $relativePath);
         if ($level <= 0) {
             $zip->setCompressionName($relativePath, ZipArchive::CM_STORE);
         } else {

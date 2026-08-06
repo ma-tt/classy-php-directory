@@ -31,6 +31,7 @@ Edit the `$CL_CONFIG` array at the top of `index.php`:
 - `items_per_page`: pagination, `0` to disable
 - `hash_size_limit`: max file size for checksums
 - `zip_enabled`: turn zip downloads off
+- `zip_size_limit`: max uncompressed bytes per zip download, `0` to disable
 
 ## Security
 
@@ -49,14 +50,10 @@ add_header X-Frame-Options "SAMEORIGIN" always;
 add_header Content-Security-Policy "object-src 'none'; frame-ancestors 'self'" always;
 ```
 
-## Contributions
+## History
 
-Thanks to [Chris Kankiewicz](http://www.chriskankiewicz.com/)
+Originally forked from Chris Kankiewicz's PHP Directory Lister back in 2016. Since then rewritten into a single file script.
 
 ## License
 
-[Classy PHP Directory](https://github.com/ma-tt/classy-php-directory) © 2016 by [ma-tt](https://github.com/ma-tt) is licensed by the [MIT License](http://www.opensource.org/licenses/mit-license.php)
-
-## Credits
-
-Created by [ma-tt](https://github.com/ma-tt)
+[Classy PHP Directory](https://github.com/ma-tt/classy-php-directory) © 2016–2026 by [ma-tt](https://github.com/ma-tt) is licensed by the [MIT License](http://www.opensource.org/licenses/mit-license.php)
