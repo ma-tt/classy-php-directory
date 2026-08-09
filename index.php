@@ -64,6 +64,13 @@ $CL_CONFIG = array(
     // Allow visitors to compute MD5/SHA1 checksums of individual files.
     'hash_enabled' => true,
     'hash_size_limit' => 268435456, // 256 MB, files larger than this won't be hashed
+
+    // Per-IP limit on ?hash= requests, to bound CPU/disk load from repeated
+    // hashing of large files. Best-effort only: needs the APCu extension to
+    // track request counts in memory (no extra files); without it, requests
+    // are simply not rate limited. 0 disables the max even if APCu is present.
+    'hash_rate_limit_max' => 30,
+    'hash_rate_limit_window' => 60, // seconds
 );
 // ============================ END CONFIG =============================
 
@@ -75,11 +82,24 @@ if ($CL_CONFIG['hide_dot_files']) {
 }
 
 // ---- security bootstrap ----
-ini_set('open_basedir', getcwd());
+// The system temp dir has to stay reachable too: zip downloads build the
+// archive there via tempnam()/ZipArchive before streaming it out, and on
+// most real hosts it lives outside the served folder.
+ini_set('open_basedir', getcwd() . PATH_SEPARATOR . sys_get_temp_dir());
+
+// Per-request nonce so inline <script> blocks can run under CSP without 'unsafe-inline'.
+$CL_NONCE = base64_encode(random_bytes(16));
+
+// The zip extension is optional on many PHP installs. Gate zip UI on whether
+// it's actually present, not just the config flag, so a stock/minimal PHP
+// build doesn't show buttons that error out when clicked.
+$CL_ZIP_AVAILABLE = $CL_CONFIG['zip_enabled'] && class_exists('ZipArchive');
+
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
 header('X-Robots-Tag: noindex, nofollow');
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'self'");
+header('Referrer-Policy: no-referrer');
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; script-src 'self' 'nonce-$CL_NONCE'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'");
 
 // Bootstrap Icons, pinned + SRI-verified. The one external request this file makes
 // besides the Google Fonts stylesheet below.
@@ -169,6 +189,17 @@ function cl_sanitize_dir($dir, $config) {
     if (!file_exists($dir) || !is_dir($dir)) {
         return null;
     }
+    // Belt-and-suspenders on top of the '..'-segment check above: if a symlink
+    // inside this folder points outside of it, its resolved real path won't
+    // fall under our own real path, so reject it rather than trust open_basedir alone.
+    $root = realpath('.');
+    $real = realpath($dir);
+    if ($root === false || $real === false) {
+        return null;
+    }
+    if ($real !== $root && strpos($real, $root . DIRECTORY_SEPARATOR) !== 0) {
+        return null;
+    }
     if (cl_is_hidden($dir, $config)) {
         return null;
     }
@@ -188,7 +219,10 @@ function cl_sanitize_file_param($raw) {
 }
 
 function cl_is_hidden($relativePath, $config) {
-    $variants = array($relativePath, ltrim($relativePath, './'), basename($relativePath));
+    // Strip a single leading './', not a run of dot/slash characters (ltrim's
+    // second arg is a char mask, which would over-strip names like '..bak').
+    $withoutLeadingDotSlash = (substr($relativePath, 0, 2) === './') ? substr($relativePath, 2) : $relativePath;
+    $variants = array($relativePath, $withoutLeadingDotSlash, basename($relativePath));
     foreach ($config['hidden_files'] as $pattern) {
         if ($pattern === '') {
             continue;
@@ -240,6 +274,9 @@ function cl_read_directory($dir, $config, $icons) {
         }
         $isDir = is_dir($realPath);
 
+        // One stat() call gets both size and mtime instead of two separate syscalls.
+        $stat = @stat($realPath);
+
         if ($file === '..') {
             $parts = explode('/', $dir);
             array_pop($parts);
@@ -250,7 +287,7 @@ function cl_read_directory($dir, $config, $icons) {
                 'is_parent' => true,
                 'size' => -1,
                 'size_display' => '-',
-                'mtime' => (($mt = @filemtime($realPath)) !== false) ? $mt : 0,
+                'mtime' => ($stat !== false) ? $stat['mtime'] : 0,
                 'url' => '?' . ($parentDir !== '' ? 'dir=' . rawurlencode($parentDir) : ''),
                 'icon' => 'bi-arrow-90deg-up',
             );
@@ -261,7 +298,7 @@ function cl_read_directory($dir, $config, $icons) {
             continue;
         }
 
-        $bytes = $isDir ? false : @filesize($realPath);
+        $bytes = ($isDir || $stat === false) ? false : $stat['size'];
         $urlPath = implode('/', array_map('rawurlencode', explode('/', $relativePath)));
 
         $entries[$file] = array(
@@ -270,9 +307,10 @@ function cl_read_directory($dir, $config, $icons) {
             'is_parent' => false,
             'size' => $isDir ? -1 : ($bytes === false ? -1 : $bytes),
             'size_display' => $isDir ? '-' : cl_human_size($bytes),
-            'mtime' => (($mt = @filemtime($realPath)) !== false) ? $mt : 0,
+            'mtime' => ($stat !== false) ? $stat['mtime'] : 0,
             'url' => $isDir ? ('?dir=' . $urlPath) : $urlPath,
             'icon' => cl_icon_for($file, $isDir, $icons),
+            'is_link' => is_link($relativePath),
         );
     }
 
@@ -291,6 +329,9 @@ function cl_sort_entries($entries, $sortKey, $order, $foldersFirst) {
     usort($items, function ($a, $b) use ($sortKey) {
         switch ($sortKey) {
             case 'size':
+                // Folders share the -1 sentinel from cl_read_directory(), so sorting by size
+                // always groups them at one end (as if they were all the same size) even when
+                // list_folders_first is off. That's intentional, not a bug.
                 return $a['size'] <=> $b['size'];
             case 'date':
                 return $a['mtime'] <=> $b['mtime'];
@@ -343,12 +384,11 @@ function cl_page_link($page, $dir, $sortKey, $order) {
     if ($dir !== '.') {
         $params['dir'] = $dir;
     }
-    if ($sortKey !== 'name') {
-        $params['sort'] = $sortKey;
-    }
-    if ($order !== 'asc') {
-        $params['order'] = $order;
-    }
+    // Always explicit (even at name/asc defaults) so client-side sort persistence can
+    // reliably tell "still on this sort" apart from "no sort chosen yet" (see the
+    // localStorage-restore script in <head>).
+    $params['sort'] = $sortKey;
+    $params['order'] = $order;
     $params['page'] = $page;
     return '?' . http_build_query($params);
 }
@@ -360,7 +400,11 @@ function cl_zip_directory($dir, $config) {
     }
 
     $name = ($dir === '.') ? 'Home' : basename($dir);
-    $tmp = tempnam(sys_get_temp_dir(), 'classylite') . '.zip';
+    $tmp = tempnam(sys_get_temp_dir(), 'classylite');
+    if ($tmp === false) {
+        http_response_code(500);
+        die('Could not create a temporary file for the zip archive.');
+    }
 
     $zip = new ZipArchive();
     if ($zip->open($tmp, ZipArchive::CREATE) !== true) {
@@ -387,11 +431,16 @@ function cl_zip_directory($dir, $config) {
     $hasFiles = false;
     $totalBytes = 0;
 
+    // hidden_files patterns are matched root-relative everywhere (see cl_is_hidden
+    // callers elsewhere), so a multi-segment pattern hides a file the same way
+    // whether you're browsing it or zipping the folder it lives in directly.
+    $zipRootPrefix = ($dir === '.') ? '' : $dir . '/';
+
     foreach ($iterator as $file) {
         // Use the iterator's own sub-path rather than stripping $dir as a substring.
         // Stripping '.' from every path would eat every '.' in every filename/extension.
         $relativePath = $iterator->getSubPathname();
-        $relativeForMatch = str_replace(DIRECTORY_SEPARATOR, '/', $relativePath);
+        $relativeForMatch = $zipRootPrefix . str_replace(DIRECTORY_SEPARATOR, '/', $relativePath);
 
         if (cl_is_hidden($relativeForMatch, $config)) {
             continue;
@@ -435,6 +484,30 @@ function cl_zip_directory($dir, $config) {
     header('Content-Length: ' . filesize($tmp));
     readfile($tmp);
     unlink($tmp);
+}
+
+/** True if the current client has exceeded the ?hash= rate limit. Best-effort:
+ *  returns false (never blocks) when APCu isn't available, since this file has
+ *  no other place to keep counters across requests without adding a file. */
+function cl_hash_rate_limited($config) {
+    $max = (int) $config['hash_rate_limit_max'];
+    if ($max <= 0 || !function_exists('apcu_fetch')) {
+        return false;
+    }
+    $window = (int) $config['hash_rate_limit_window'];
+    $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'unknown';
+    $key = 'cl_hash_rl_' . $ip;
+
+    $count = apcu_fetch($key);
+    if ($count === false) {
+        apcu_add($key, 1, $window);
+        return false;
+    }
+    if ($count >= $max) {
+        return true;
+    }
+    apcu_inc($key);
+    return false;
 }
 
 function cl_file_hash($relPath, $config) {
@@ -497,6 +570,11 @@ if (isset($_GET['hash'])) {
         echo json_encode(array('md5' => null, 'sha1' => null, 'size' => null));
         exit;
     }
+    if (cl_hash_rate_limited($CL_CONFIG)) {
+        http_response_code(429);
+        echo json_encode(array('md5' => null, 'sha1' => null, 'size' => null, 'error' => 'Too many requests, try again shortly.'));
+        exit;
+    }
     echo json_encode(cl_file_hash($file, $CL_CONFIG));
     exit;
 }
@@ -554,6 +632,16 @@ if ($parentRow !== null) {
 
 $breadcrumbs = cl_breadcrumbs($dir, $CL_BASE);
 $pageTitle = $CL_CONFIG['title'] . ' — /' . ($dir === '.' ? '' : $dir);
+
+// Summary line: total item count and combined size of files in this folder.
+// Folder sizes aren't computed (would mean a recursive walk), so only files count toward the total.
+$summaryBytes = 0;
+foreach ($sorted as $e) {
+    if (!$e['is_dir'] && $e['size'] > 0) {
+        $summaryBytes += $e['size'];
+    }
+}
+$summaryText = $total . ' item' . ($total === 1 ? '' : 's') . ', ' . cl_human_size($summaryBytes) . ' total';
 ?>
 <!doctype html>
 <html lang="en">
@@ -568,12 +656,38 @@ $pageTitle = $CL_CONFIG['title'] . ' — /' . ($dir === '.' ? '' : $dir);
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- Google Fonts serves a UA-tailored stylesheet, so it can't be SRI-pinned like the icon font above. -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
-<script>
+<script nonce="<?php echo $CL_NONCE; ?>">
 (function () {
     var t = localStorage.getItem('cl-theme');
     if (t === 'light' || t === 'dark') {
         document.documentElement.setAttribute('data-theme', t);
     }
+})();
+(function () {
+    // Sort links (cl_sort_link) always set both 'sort' and 'order' explicitly, so their
+    // absence here means we landed on this folder some other way (a folder link,
+    // breadcrumb, or pagination) and defaulted back to name/asc.
+    var params = new URLSearchParams(window.location.search);
+    var explicit = params.has('sort') || params.has('order');
+    var validSorts = { name: true, size: true, date: true };
+    if (explicit) {
+        if (validSorts[<?php echo json_encode($sortKey); ?>]) {
+            localStorage.setItem('cl-sort', <?php echo json_encode($sortKey); ?> + ':' + <?php echo json_encode($order); ?>);
+        }
+        return;
+    }
+    var saved = localStorage.getItem('cl-sort');
+    if (!saved) {
+        return;
+    }
+    var parts = saved.split(':');
+    var savedSort = parts[0], savedOrder = parts[1] === 'desc' ? 'desc' : 'asc';
+    if (!validSorts[savedSort] || (savedSort === <?php echo json_encode($sortKey); ?> && savedOrder === <?php echo json_encode($order); ?>)) {
+        return;
+    }
+    params.set('sort', savedSort);
+    params.set('order', savedOrder);
+    window.location.replace('?' + params.toString());
 })();
 </script>
 <style>
@@ -608,7 +722,10 @@ a:hover { text-decoration: underline; }
 .cl-breadcrumbs a { color: var(--muted); }
 .cl-breadcrumbs a:hover { color: var(--fg); }
 .cl-actions { display: flex; gap: 0.5rem; }
-button.cl-btn {
+.cl-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
     background: transparent;
     color: var(--fg);
     border: 1px solid var(--border);
@@ -620,7 +737,7 @@ button.cl-btn {
     cursor: pointer;
     transition: background-color 0.1s ease, border-color 0.1s ease;
 }
-button.cl-btn:hover { background: var(--hover); border-color: var(--muted); }
+.cl-btn:hover { background: var(--hover); border-color: var(--muted); text-decoration: none; }
 .cl-table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; table-layout: auto; }
 th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border); }
@@ -637,6 +754,11 @@ td.cl-name-cell { width: 100%; max-width: 0; padding: 0; }
     padding: 0.5rem 0.6rem; color: inherit; text-decoration: none;
 }
 .cl-name i { color: var(--muted); flex: none; }
+.cl-icon-wrap { position: relative; display: inline-flex; flex: none; }
+.cl-symlink-badge {
+    position: absolute; bottom: -3px; right: -5px;
+    font-size: 0.62rem; background: var(--bg); border-radius: 50%; line-height: 1;
+}
 .cl-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 th.cl-actions-col, td.cl-actions-cell { white-space: nowrap; width: 1%; }
 /* min-height keeps rows with no action buttons (the ".." row) the same height as every other row. */
@@ -672,6 +794,7 @@ a:focus-visible, button:focus-visible {
 .cl-pager span.disabled { color: var(--muted); }
 .cl-pager span.current { background: var(--fg); color: var(--bg); }
 .cl-alert { border-left: 3px solid var(--fg); padding: 0.6rem 0.9rem; margin-bottom: 1rem; font-size: 0.9rem; }
+.cl-summary { color: var(--muted); font-size: 0.85rem; margin-bottom: 0.75rem; }
 .cl-footer { margin-top: 2rem; color: var(--muted); font-size: 0.8rem; text-align: center; }
 .cl-footer a { color: inherit; text-decoration: underline; }
 .cl-footer a:hover { color: var(--fg); }
@@ -695,11 +818,9 @@ a:focus-visible, button:focus-visible {
     <div class="cl-header">
         <h1><?php echo htmlspecialchars($CL_CONFIG['title']); ?></h1>
         <div class="cl-actions">
-            <?php if ($CL_CONFIG['zip_enabled']): ?>
-            <a href="?<?php echo http_build_query(array('zip' => $dir)); ?>">
-                <button type="button" class="cl-btn" aria-label="Download this folder as a zip file">
-                    <i class="bi bi-file-earmark-zip" aria-hidden="true"></i> Download zip
-                </button>
+            <?php if ($CL_ZIP_AVAILABLE): ?>
+            <a class="cl-btn" href="?<?php echo http_build_query(array('zip' => $dir)); ?>" aria-label="Download this folder as a zip file">
+                <i class="bi bi-file-earmark-zip" aria-hidden="true"></i> Download zip
             </a>
             <?php endif; ?>
             <button type="button" class="cl-btn" id="cl-theme-toggle" aria-label="Toggle dark mode">
@@ -718,6 +839,8 @@ a:focus-visible, button:focus-visible {
     <?php if ($invalidPath): ?>
     <div class="cl-alert"><strong>Notice:</strong> That path was invalid or inaccessible. Showing the home folder instead.</div>
     <?php endif; ?>
+
+    <div class="cl-summary"><?php echo htmlspecialchars($summaryText); ?></div>
 
     <div class="cl-table-wrap">
     <table>
@@ -738,8 +861,15 @@ a:focus-visible, button:focus-visible {
             ?>
             <tr>
                 <td class="cl-name-cell">
-                    <a class="cl-name" href="<?php echo htmlspecialchars($entry['url']); ?>" title="<?php echo htmlspecialchars($entry['name']); ?>">
-                        <i class="bi <?php echo htmlspecialchars($entry['icon']); ?>" aria-hidden="true"></i>
+                    <?php $isLink = !empty($entry['is_link']); ?>
+                    <a class="cl-name" href="<?php echo htmlspecialchars($entry['url']); ?>" title="<?php echo htmlspecialchars($entry['name'] . ($isLink ? ' (symlink)' : '')); ?>">
+                        <span class="cl-icon-wrap">
+                            <i class="bi <?php echo htmlspecialchars($entry['icon']); ?>" aria-hidden="true"></i>
+                            <?php if ($isLink): ?>
+                            <i class="bi bi-link-45deg cl-symlink-badge" aria-hidden="true"></i>
+                            <span class="sr-only">(symlink)</span>
+                            <?php endif; ?>
+                        </span>
                         <span class="cl-name-text"><?php echo htmlspecialchars($entry['name']); ?></span>
                     </a>
                 </td>
@@ -750,7 +880,7 @@ a:focus-visible, button:focus-visible {
                         <?php if ($entry['is_parent']): ?>
                             <?php // no actions on the ".." row ?>
                         <?php elseif ($entry['is_dir']): ?>
-                            <?php if ($CL_CONFIG['zip_enabled']): ?>
+                            <?php if ($CL_ZIP_AVAILABLE): ?>
                             <a class="cl-icon-btn" href="?<?php echo http_build_query(array('zip' => $entryRelPath)); ?>" aria-label="Download <?php echo htmlspecialchars($entry['name']); ?> as a zip file">
                                 <i class="bi bi-file-earmark-zip" aria-hidden="true"></i>
                             </a>
@@ -809,7 +939,7 @@ a:focus-visible, button:focus-visible {
     </div>
 </div>
 
-<script>
+<script nonce="<?php echo $CL_NONCE; ?>">
 document.getElementById('cl-theme-toggle').addEventListener('click', function () {
     var current = document.documentElement.getAttribute('data-theme')
         || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
@@ -819,17 +949,44 @@ document.getElementById('cl-theme-toggle').addEventListener('click', function ()
 });
 
 var modal = document.getElementById('cl-modal');
+var modalDialog = modal.querySelector('.cl-modal');
 var modalBody = document.getElementById('cl-modal-body');
+var modalCloseBtn = document.getElementById('cl-modal-close');
+var modalOpenerEl = null;
+
+function cl_focusable(container) {
+    return Array.prototype.slice.call(
+        container.querySelectorAll('a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])')
+    );
+}
+
+function cl_open_modal(opener) {
+    modalOpenerEl = opener;
+    modal.hidden = false;
+    modalCloseBtn.focus();
+}
+
+function cl_close_modal() {
+    modal.hidden = true;
+    if (modalOpenerEl) {
+        modalOpenerEl.focus();
+        modalOpenerEl = null;
+    }
+}
 
 document.querySelectorAll('.cl-hash-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {
         var path = btn.getAttribute('data-path');
         modalBody.textContent = 'Computing…';
-        modal.hidden = false;
+        cl_open_modal(btn);
         fetch('?hash=' + encodeURIComponent(path))
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 modalBody.innerHTML = '';
+                if (data.error) {
+                    modalBody.textContent = data.error;
+                    return;
+                }
                 var addRow = function (label, val) {
                     var p = document.createElement('p');
                     var strong = document.createElement('strong');
@@ -850,12 +1007,37 @@ document.querySelectorAll('.cl-hash-btn').forEach(function (btn) {
     });
 });
 
-document.getElementById('cl-modal-close').addEventListener('click', function () {
-    modal.hidden = true;
-});
+modalCloseBtn.addEventListener('click', cl_close_modal);
 modal.addEventListener('click', function (e) {
     if (e.target === modal) {
-        modal.hidden = true;
+        cl_close_modal();
+    }
+});
+modal.addEventListener('keydown', function (e) {
+    if (modal.hidden) {
+        return;
+    }
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        cl_close_modal();
+        return;
+    }
+    if (e.key !== 'Tab') {
+        return;
+    }
+    // Focus trap: keep Tab/Shift+Tab cycling within the modal's focusable elements.
+    var focusable = cl_focusable(modalDialog);
+    if (focusable.length === 0) {
+        return;
+    }
+    var first = focusable[0];
+    var last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
     }
 });
 </script>

@@ -12,9 +12,12 @@ That's it.
 
 ## Requirements
 
-PHP, any recent version. The `zip` extension if you want zip downloads (on by default,
-everything else still works fine without it). Icons and fonts load from a CDN, so it
-looks best with internet access, but it still works fine offline, just plainer.
+PHP 7.0+.
+
+Optional:
+- `zip` extension — zip downloads. Without it, everything else still works.
+- `apcu` extension — rate limits the checksum endpoint. Without it, checksums still work, just unthrottled.
+- Internet access — icons and fonts load from a CDN. Works offline too, just plainer.
 
 ## How to use
 
@@ -30,6 +33,7 @@ Edit the `$CL_CONFIG` array at the top of `index.php`:
 - `hidden_files` / `hide_dot_files`: hide files from the listing (glob patterns)
 - `items_per_page`: pagination, `0` to disable
 - `hash_size_limit`: max file size for checksums
+- `hash_rate_limit_max` / `hash_rate_limit_window`: per-IP checksum request cap (needs `apcu`)
 - `zip_enabled`: turn zip downloads off
 - `zip_size_limit`: max uncompressed bytes per zip download, `0` to disable
 
