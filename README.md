@@ -23,10 +23,8 @@ Optional:
 
 ## How to use
 
-Click a filename to open it, a folder to browse into it (click anywhere in the row, not
-just the text). Each file row has info and download buttons on the right; folders get a
-zip button instead. Click a column header to sort by name, size, or date. Dark mode
-toggle is top right, follows your OS setting until you touch it.
+Click a file to open it, a folder to browse in. Files get info and download buttons,
+folders get a zip button. Click a column header to sort. Dark mode toggle is top right.
 
 ## Configuration
 
