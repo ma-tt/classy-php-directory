@@ -1,7 +1,9 @@
 # Classy PHP Directory
 
 A directory listing you can drop into any folder to browse files and subfolders without
-looking like it's stuck in 2001. One PHP file, no build step, nothing to install.
+looking like it's stuck in 2001. 
+
+One PHP file, no build step, nothing to install.
 
 ## Quick Start
 
