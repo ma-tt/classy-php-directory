@@ -3,6 +3,7 @@
  * Classy PHP Directory
  * https://github.com/ma-tt/classy-php-directory
  * By ma-tt
+ * https://github.com/ma-tt
  *
  * DESCRIPTION
  * Drop this one file into any folder and open it in a browser. No install,
