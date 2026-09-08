@@ -1,6 +1,0 @@
-*.md
-!README.md
-.*/
-.*
-!.gitignore
-!.htaccess
