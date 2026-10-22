@@ -36,11 +36,15 @@ Edit the `$CL_CONFIG` array at the top of `index.php`:
 - `hash_rate_limit_max` / `hash_rate_limit_window`: per-IP checksum request cap (needs `apcu`)
 - `zip_enabled`: turn zip downloads off
 - `zip_size_limit`: max uncompressed bytes per zip download, `0` to disable
+- `zip_skip_extensions`: file extensions left out of zip downloads (PHP and other script files by default)
+- `zip_rate_limit_max`: per-IP zip download cap (needs `apcu`)
 
 ## Security
 
 No login. Anyone with the URL can browse and download. Put it behind HTTP auth if that's
 a problem.
+
+Hiding a folder also hides its contents from the listing, checksums and zip downloads. Zip downloads leave out PHP and other script files by default.
 
 Hiding a file only hides it from the listing, not from someone requesting it directly. If
 the folder has anything sensitive in it, copy the `.htaccess` from this repo alongside

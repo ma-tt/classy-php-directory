@@ -61,6 +61,11 @@ $CL_CONFIG = array(
     'zip_enabled' => true,
     'zip_compression_level' => 0, // 0 = store (fast, no compression), 1-9 = deflate level
     'zip_size_limit' => 1073741824, // 1 GB of uncompressed input, 0 = no limit
+    // Files with these extensions are left out of zips, so a download can't hand
+    // out the source of scripts the server would otherwise run. Empty array = include everything.
+    'zip_skip_extensions' => array('php', 'phtml', 'phar', 'pht', 'php3', 'php4', 'php5', 'php7', 'phps', 'inc'),
+    // Per-IP limit on zip downloads, same APCu caveat as the hash limit below.
+    'zip_rate_limit_max' => 10,
 
     // Allow visitors to compute MD5/SHA1 checksums of individual files.
     'hash_enabled' => true,
@@ -171,6 +176,9 @@ function cl_sanitize_dir($dir, $config) {
     if ($dir === null || $dir === '') {
         return '.';
     }
+    if (!is_string($dir)) {
+        return null;
+    }
     if (strpos($dir, "\0") !== false) {
         return null;
     }
@@ -209,7 +217,7 @@ function cl_sanitize_dir($dir, $config) {
 
 /** Validates a file param (for ?zip= and ?hash=). Same character checks, no existence check yet. */
 function cl_sanitize_file_param($raw) {
-    if ($raw === null || $raw === '') {
+    if (!is_string($raw) || $raw === '') {
         return null;
     }
     if (strpos($raw, "\0") !== false || cl_has_dotdot_segment($raw)
@@ -224,6 +232,17 @@ function cl_is_hidden($relativePath, $config) {
     // second arg is a char mask, which would over-strip names like '..bak').
     $withoutLeadingDotSlash = (substr($relativePath, 0, 2) === './') ? substr($relativePath, 2) : $relativePath;
     $variants = array($relativePath, $withoutLeadingDotSlash, basename($relativePath));
+    // Every parent folder (and each path segment) counts too, so hiding a folder
+    // also hides what's inside it.
+    $prefix = '';
+    foreach (explode('/', $withoutLeadingDotSlash) as $segment) {
+        if ($segment === '' || $segment === '.') {
+            continue;
+        }
+        $prefix = ($prefix === '') ? $segment : $prefix . '/' . $segment;
+        $variants[] = $prefix;
+        $variants[] = $segment;
+    }
     foreach ($config['hidden_files'] as $pattern) {
         if ($pattern === '') {
             continue;
@@ -407,6 +426,13 @@ function cl_zip_directory($dir, $config) {
         die('Could not create a temporary file for the zip archive.');
     }
 
+    // The temp file must go away even if the visitor drops the connection mid-download.
+    register_shutdown_function(function () use ($tmp) {
+        if (file_exists($tmp)) {
+            @unlink($tmp);
+        }
+    });
+
     $zip = new ZipArchive();
     if ($zip->open($tmp, ZipArchive::CREATE) !== true) {
         http_response_code(500);
@@ -444,6 +470,9 @@ function cl_zip_directory($dir, $config) {
         $relativeForMatch = $zipRootPrefix . str_replace(DIRECTORY_SEPARATOR, '/', $relativePath);
 
         if (cl_is_hidden($relativeForMatch, $config)) {
+            continue;
+        }
+        if (in_array(strtolower($file->getExtension()), $config['zip_skip_extensions'], true)) {
             continue;
         }
 
@@ -487,17 +516,17 @@ function cl_zip_directory($dir, $config) {
     unlink($tmp);
 }
 
-/** True if the current client has exceeded the ?hash= rate limit. Best-effort:
+/** True if the current client has exceeded a rate limit (?hash= or ?zip=). Best-effort:
  *  returns false (never blocks) when APCu isn't available, since this file has
  *  no other place to keep counters across requests without adding a file. */
-function cl_hash_rate_limited($config) {
-    $max = (int) $config['hash_rate_limit_max'];
+function cl_hash_rate_limited($config, $bucket = 'hash') {
+    $max = (int) $config[$bucket . '_rate_limit_max'];
     if ($max <= 0 || !function_exists('apcu_fetch')) {
         return false;
     }
     $window = (int) $config['hash_rate_limit_window'];
     $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'unknown';
-    $key = 'cl_hash_rl_' . $ip;
+    $key = 'cl_' . $bucket . '_rl_' . $ip;
 
     $count = apcu_fetch($key);
     if ($count === false) {
@@ -589,6 +618,10 @@ if (isset($_GET['zip'])) {
     if ($zipDir === null) {
         http_response_code(400);
         die('Invalid path.');
+    }
+    if (cl_hash_rate_limited($CL_CONFIG, 'zip')) {
+        http_response_code(429);
+        die('Too many requests, try again shortly.');
     }
     cl_zip_directory($zipDir, $CL_CONFIG);
     exit;
